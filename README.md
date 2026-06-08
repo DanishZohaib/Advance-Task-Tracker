@@ -120,11 +120,11 @@ For testing and onboarding convenience, the application initiates the database w
 
 | Username | Password | Role | Access Level |
 | :--- | :--- | :--- | :--- |
-| `admin` | `Admin@123` | `Administrator` | System Settings & Full Access |
-| `payroll_user` | `Payroll@123` | `Payroll Team` | Stage 1 Completion |
-| `finance_user` | `Finance@123` | `NM Finance` | Stage 2 Approvals & Rejections |
-| `cfo_user` | `CfoPass@123` | `GM/CFO` | Stage 3 Release & Full Rejections |
-| `auditor_user` | `Auditor@123` | `Auditor` | Audit Trail & Reports Registry |
+| `admin` | `XXXX` | `Administrator` | System Settings & Full Access |
+| `payroll_user` | `XXXX` | `Payroll Team` | Stage 1 Completion |
+| `finance_user` | `XXXX` | `NM Finance` | Stage 2 Approvals & Rejections |
+| `cfo_user` | `XXXX` | `GM/CFO` | Stage 3 Release & Full Rejections |
+| `auditor_user` | `XXXX` | `Auditor` | Audit Trail & Reports Registry |
 
 ---
 
