@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: tasktracker_db
+    restart: always
+    environment:
+      POSTGRES_USER: enterprise_admin
+      POSTGRES_PASSWORD: SecretPassword@123
+      POSTGRES_DB: tasktracker_pro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U enterprise_admin -d tasktracker_pro"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./
+      dockerfile: backend/Dockerfile
+    container_name: tasktracker_backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://enterprise_admin:SecretPassword@123@db:5432/tasktracker_pro
+      - JWT_SECRET_KEY=prod_enterprise_access_secret_key_998877
+      - JWT_REFRESH_SECRET_KEY=prod_enterprise_refresh_secret_key_778899
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - REFRESH_TOKEN_EXPIRE_DAYS=7
+    volumes:
+      - storage_data:/storage
+
+  frontend:
+    build:
+      context: ./
+      dockerfile: frontend/Dockerfile
+    container_name: tasktracker_frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://backend:8000
+    command: streamlit run frontend/app.py --server.port=8501 --server.address=0.0.0.0
+
+
+volumes:
+  postgres_data:
+  storage_data:
