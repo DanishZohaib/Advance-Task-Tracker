@@ -205,7 +205,7 @@ def create_task(
     if not category_val:
         raise HTTPException(status_code=400, detail="Category/Module is required.")
         
-    valid_categories = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"]
+    valid_categories = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Petty Cash", "Audit Schedules"]
     if category_val not in valid_categories:
         raise HTTPException(
             status_code=400,

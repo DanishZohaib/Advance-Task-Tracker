@@ -62,7 +62,7 @@ def test_scheduler_task_generation(db_session):
     past_date = datetime.utcnow() - timedelta(days=2)
     template = RecurringTaskMaster(
         task_name="Scheduled Petty Cash Audit",
-        department="Factory Petty Cash",
+        department="Petty Cash",
         description="Verify cash book",
         responsible_person_id=u.id,
         start_date=past_date,

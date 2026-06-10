@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY frontend/ ./frontend/
 COPY backend/ ./backend/
 COPY database/ ./database/
+COPY .streamlit/ ./.streamlit/
 
 # Set PYTHONPATH environment variable to allow module resolution
 ENV PYTHONPATH=/app

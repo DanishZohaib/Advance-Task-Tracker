@@ -5,6 +5,8 @@ import streamlit as st
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 class APIClient:
+    _session = requests.Session()
+
     @staticmethod
     def get_headers(auth_required=True):
         headers = {}
@@ -24,7 +26,7 @@ class APIClient:
                 else:
                     kwargs["headers"] = headers
                 
-                retry_resp = requests.request(method, url, **kwargs)
+                retry_resp = APIClient._session.request(method, url, **kwargs)
                 return retry_resp
             else:
                 # Refresh failed - clear session state and log out user
@@ -46,7 +48,7 @@ class APIClient:
             return False
             
         try:
-            resp = requests.post(refresh_url, json={"refresh_token": refresh_token})
+            resp = APIClient._session.post(refresh_url, json={"refresh_token": refresh_token})
             if resp.status_code == 200:
                 data = resp.json()
                 st.session_state["access_token"] = data["access_token"]
@@ -61,7 +63,7 @@ class APIClient:
         url = f"{BACKEND_URL}{endpoint}"
         headers = APIClient.get_headers(auth_required)
         try:
-            resp = requests.get(url, headers=headers, params=params)
+            resp = APIClient._session.get(url, headers=headers, params=params)
             return APIClient.handle_response(resp, "GET", url, auth_required, params=params)
         except requests.exceptions.ConnectionError:
             st.error("Cannot connect to backend service. Ensure FastAPI is running.")
@@ -72,7 +74,7 @@ class APIClient:
         url = f"{BACKEND_URL}{endpoint}"
         headers = APIClient.get_headers(auth_required)
         try:
-            resp = requests.post(url, headers=headers, json=json, data=data, files=files)
+            resp = APIClient._session.post(url, headers=headers, json=json, data=data, files=files)
             return APIClient.handle_response(resp, "POST", url, auth_required, json=json, data=data, files=files)
         except requests.exceptions.ConnectionError:
             st.error("Cannot connect to backend service. Ensure FastAPI is running.")
@@ -83,7 +85,7 @@ class APIClient:
         url = f"{BACKEND_URL}{endpoint}"
         headers = APIClient.get_headers(auth_required)
         try:
-            resp = requests.put(url, headers=headers, json=json)
+            resp = APIClient._session.put(url, headers=headers, json=json)
             return APIClient.handle_response(resp, "PUT", url, auth_required, json=json)
         except requests.exceptions.ConnectionError:
             st.error("Cannot connect to backend service. Ensure FastAPI is running.")

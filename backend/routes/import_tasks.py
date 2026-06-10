@@ -107,7 +107,7 @@ async def import_recurring_tasks_excel(
             task_name = str(task_name).strip()
             
         # 2. Validate Category
-        valid_categories = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"]
+        valid_categories = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Petty Cash", "Audit Schedules"]
         if not category or str(category).strip() not in valid_categories:
             row_errors.append(f"Category must be one of {valid_categories}")
         else:

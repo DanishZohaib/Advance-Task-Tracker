@@ -49,7 +49,7 @@ if st.session_state["access_token"] is not None:
 
 def run_login():
     st.markdown("<h1 style='text-align: center; color: #4F46E5;'>📋 TaskTracker Pro</h1>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center; color: #94A3B8; font-weight: 400;'>Enterprise Grade Task Tracking & Audit Monitoring</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color: var(--text-color); opacity: 0.7; font-weight: 400;'>Enterprise Grade Task Tracking & Audit Monitoring</h3>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -59,7 +59,7 @@ def run_login():
             """
             <div style='background: rgba(79, 70, 229, 0.05); padding: 25px; border-radius: 12px; border: 1px solid rgba(79, 70, 229, 0.1);'>
                 <h3 style='margin-top:0; color: #4F46E5;'>🔑 User Authentication</h3>
-                <p style='color: #94A3B8; font-size: 0.9rem;'>Access the system workspace using your corporate credentials.</p>
+                <p style='color: var(--text-color); opacity: 0.7; font-size: 0.9rem;'>Access the system workspace using your corporate credentials.</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -95,7 +95,7 @@ def run_login():
             """
             <div style='background: rgba(16, 185, 129, 0.05); padding: 25px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.1);'>
                 <h3 style='margin-top:0; color: #10B981;'>📝 Register Profile</h3>
-                <p style='color: #94A3B8; font-size: 0.9rem;'>Create a new security identity. Hashed usingbcrypt.</p>
+                <p style='color: var(--text-color); opacity: 0.7; font-size: 0.9rem;'>Create a new security identity. Hashed usingbcrypt.</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -136,7 +136,7 @@ def run_login():
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     st.markdown(
         f"""
-        <div style='text-align: center; color: #64748B; font-size: 0.85rem; border-top: 1px solid #334155; padding-top: 20px;'>
+        <div style='text-align: center; color: var(--text-color); opacity: 0.6; font-size: 0.85rem; border-top: 1px solid rgba(128, 128, 128, 0.2); padding-top: 20px;'>
             Enterprise Grade Compliance Platform | Server API: <code>{BACKEND_URL}</code>
         </div>
         """,
@@ -154,22 +154,6 @@ def handle_logout():
     st.rerun()
 
 def run_main_app():
-    # Setup sidebar branding
-    st.sidebar.markdown("<h2 style='margin-bottom:0;'>📋 TaskTracker Pro</h2>", unsafe_allow_html=True)
-    st.sidebar.markdown("<code style='color:#94A3B8;'>Enterprise Edition v1.0</code>", unsafe_allow_html=True)
-    st.sidebar.markdown("---")
-    
-    # User session banner
-    st.sidebar.markdown(
-        f"""
-        <div class='sidebar-user'>
-            👤 <b>Logged in:</b> {st.session_state['username']}<br>
-            🛡️ <b>Role:</b> {st.session_state['user_role']}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    
     # Retrieve notification badge count
     unread_count = 0
     notif_resp = APIClient.get("/api/notifications?unread_only=true")
@@ -182,6 +166,7 @@ def run_main_app():
     pages = {
         "📊 Executive Dashboard": "dashboard",
         "📝 Workflows & Tasks": "tasks",
+        "📖 Operator Manual": "manual",
         "⚙️ Recurring Task Master": "recurring",
         "📁 Advanced Reports": "reports",
         "🔒 Security & Audit Trail": "audit",
@@ -190,12 +175,31 @@ def run_main_app():
     if st.session_state["user_role"] in ["Administrator"]:
         pages["⚙️ SMTP Admin Settings"] = "settings"
     
+    # Navigation workspaces menu at the top
     selected_page = st.sidebar.radio("Workspaces", list(pages.keys()))
     page_key = pages[selected_page]
     
     st.sidebar.markdown("---")
+    
+    # User session banner and logout button under the workspaces menu
+    st.sidebar.markdown(
+        f"""
+        <div class='sidebar-user'>
+            👤 <b>Logged in:</b> {st.session_state['username']}<br>
+            🛡️ <b>Role:</b> {st.session_state['user_role']}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
     if st.sidebar.button("Logout Profile", key="logout_sidebar_btn", use_container_width=True):
         handle_logout()
+        
+    # Spacer and branding moved to the bottom of the menu
+    st.sidebar.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("<h3 style='margin-bottom:0; font-size: 1.2rem; color:#4F46E5;'>📋 TaskTracker Pro</h3>", unsafe_allow_html=True)
+    st.sidebar.markdown("<code style='color:var(--text-color); opacity: 0.6; font-size: 0.8rem;'>Enterprise Edition v1.0</code>", unsafe_allow_html=True)
         
     # Dynamically load the page
     if page_key == "dashboard":
@@ -203,6 +207,9 @@ def run_main_app():
         render_page()
     elif page_key == "tasks":
         from frontend.pages.tasks import render_page
+        render_page()
+    elif page_key == "manual":
+        from frontend.pages.manual import render_page
         render_page()
     elif page_key == "recurring":
         from frontend.pages.recurring import render_page

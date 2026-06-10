@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 import pandas as pd
 from datetime import datetime
 from frontend.api_client import APIClient
@@ -88,11 +89,11 @@ def render_page():
             users = users_resp.json()
             user_options = {u["username"]: u["id"] for u in users}
             
-            with st.form("create_recurring_form"):
+            with st.form("create_recurring_form", clear_on_submit=True):
                 t_name = st.text_input("Task Name *", placeholder="e.g. Monthly VAT Reconciliation")
                 t_dept = st.selectbox(
                     "Target Pipeline Module *", 
-                    options=["Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"]
+                    options=["Payroll", "Fund Accounting", "Petty Cash", "Audit Schedules"]
                 )
                 t_desc = st.text_area("Detailed Guidelines & Steps")
                 t_resp_user = st.selectbox("Responsible Person Signature *", options=list(user_options.keys()))
@@ -126,7 +127,9 @@ def render_page():
                             }
                         )
                         if resp and resp.status_code == 200:
-                            st.success("Recurring Template Master created successfully!")
+                            from frontend.styles import show_animated_checkmark
+                            show_animated_checkmark("Recurring Template Master created successfully!")
+                            time.sleep(1.5)
                             st.rerun()
                         else:
                             detail = resp.json().get("detail", "Error creating template.") if resp else "Backend unreachable."

@@ -106,7 +106,7 @@ def test_task_edit_restrictions(client, payroll_headers, finance_headers):
     # Payroll user creates task
     task_id = client.post(
         "/api/tasks",
-        json={"task_title": "Edit Task Test", "module": "Factory Petty Cash"},
+        json={"task_title": "Edit Task Test", "module": "Petty Cash"},
         headers=payroll_headers
     ).json()["task_id"]
     

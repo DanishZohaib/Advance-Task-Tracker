@@ -6,7 +6,7 @@ from backend.utils import format_duration
 
 def render_page():
     st.markdown("<h1 style='color: #4F46E5;'>📊 Executive Dashboard</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 1.1rem; color: #94A3B8;'>Real-time operational overview, category compliance metrics, and SLA timing analytics.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 1.1rem; color: var(--text-color); opacity: 0.7;'>Real-time operational overview, category compliance metrics, and SLA timing analytics.</p>", unsafe_allow_html=True)
     st.markdown("---")
     
     # Fetch tasks from backend
@@ -65,9 +65,9 @@ def render_page():
     with col1:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 20px; border-radius: 8px; border-left: 5px solid #4F46E5; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                <div style='color: #94A3B8; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Total Pipeline Tasks</div>
-                <div style='color: #F8FAFC; font-size: 2rem; font-weight: 700; margin-top: 5px;'>{total_tasks}</div>
+            <div style='background: var(--secondary-background-color); padding: 20px; border-radius: 8px; border-left: 5px solid #4F46E5; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Total Pipeline Tasks</div>
+                <div style='color: var(--text-color); font-size: 2rem; font-weight: 700; margin-top: 5px;'>{total_tasks}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -75,9 +75,9 @@ def render_page():
     with col2:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 20px; border-radius: 8px; border-left: 5px solid #10B981; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                <div style='color: #94A3B8; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Fully Completed</div>
-                <div style='color: #F8FAFC; font-size: 2rem; font-weight: 700; margin-top: 5px;'>{completed_tasks}</div>
+            <div style='background: var(--secondary-background-color); padding: 20px; border-radius: 8px; border-left: 5px solid #10B981; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Fully Completed</div>
+                <div style='color: var(--text-color); font-size: 2rem; font-weight: 700; margin-top: 5px;'>{completed_tasks}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -85,9 +85,9 @@ def render_page():
     with col3:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 20px; border-radius: 8px; border-left: 5px solid #F59E0B; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                <div style='color: #94A3B8; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Pending Review</div>
-                <div style='color: #F8FAFC; font-size: 2rem; font-weight: 700; margin-top: 5px;'>{pending_tasks}</div>
+            <div style='background: var(--secondary-background-color); padding: 20px; border-radius: 8px; border-left: 5px solid #F59E0B; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Pending Review</div>
+                <div style='color: var(--text-color); font-size: 2rem; font-weight: 700; margin-top: 5px;'>{pending_tasks}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -95,9 +95,9 @@ def render_page():
     with col4:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 20px; border-radius: 8px; border-left: 5px solid #EF4444; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
-                <div style='color: #94A3B8; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Critical & Overdue SLA</div>
-                <div style='color: #F8FAFC; font-size: 2rem; font-weight: 700; margin-top: 5px;'>{critical_sla + overdue_sla}</div>
+            <div style='background: var(--secondary-background-color); padding: 20px; border-radius: 8px; border-left: 5px solid #EF4444; box-shadow: 0 4px 6px rgba(0,0,0,0.05);'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem; font-weight: 500; text-transform: uppercase;'>Critical & Overdue SLA</div>
+                <div style='color: var(--text-color); font-size: 2rem; font-weight: 700; margin-top: 5px;'>{critical_sla + overdue_sla}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -122,7 +122,7 @@ def render_page():
     # Category Completion Rates Dashboard
     st.markdown("### 📈 Category Completion Rates")
     
-    categories = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"]
+    categories = ["Payroll", "Fund Accounting", "Petty Cash", "Audit Schedules"]
     cat_columns = st.columns(4)
     
     for idx, cat in enumerate(categories):
@@ -142,13 +142,13 @@ def render_page():
                 
             st.markdown(
                 f"""
-                <div style='background: #1E293B; padding: 18px; border-radius: 8px; border: 1px solid #334155; height: 140px;'>
-                    <div style='color: #E2E8F0; font-size: 0.95rem; font-weight: bold;'>{cat}</div>
+                <div style='background: var(--secondary-background-color); padding: 18px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.15); height: 140px;'>
+                    <div style='color: var(--text-color); font-size: 0.95rem; font-weight: bold;'>{cat}</div>
                     <div style='display: flex; justify-content: space-between; margin-top: 10px;'>
-                        <span style='color: #94A3B8; font-size: 0.85rem;'>{completed_cat}/{total_cat} Tasks</span>
-                        <span style='color: #F8FAFC; font-size: 1.1rem; font-weight: bold;'>{rate:.1f}%</span>
+                        <span style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem;'>{completed_cat}/{total_cat} Tasks</span>
+                        <span style='color: var(--text-color); font-size: 1.1rem; font-weight: bold;'>{rate:.1f}%</span>
                     </div>
-                    <div style='background-color: #334155; border-radius: 10px; height: 10px; width: 100%; margin-top: 12px; overflow: hidden;'>
+                    <div style='background-color: rgba(128,128,128,0.15); border-radius: 10px; height: 10px; width: 100%; margin-top: 12px; overflow: hidden;'>
                         <div style='background: {bar_color}; height: 100%; width: {rate}%; border-radius: 10px;'></div>
                     </div>
                 </div>
@@ -184,8 +184,7 @@ def render_page():
         )
         fig_status.update_layout(
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font_color='#F1F5F9'
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_status, use_container_width=True)
         
@@ -206,10 +205,7 @@ def render_page():
         )
         fig_cat.update_layout(
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font_color='#F1F5F9',
-            xaxis=dict(gridcolor='#334155'),
-            yaxis=dict(gridcolor='#334155')
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_cat, use_container_width=True)
         
@@ -222,8 +218,8 @@ def render_page():
     with tc1:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 15px; border-radius: 8px; border: 1px solid #334155; text-align: center;'>
-                <div style='color: #94A3B8; font-size: 0.8rem;'>Avg Payroll Processing Time</div>
+            <div style='background: var(--secondary-background-color); padding: 15px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.15); text-align: center;'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.8rem;'>Avg Payroll Processing Time</div>
                 <div style='color: #3B82F6; font-size: 1.25rem; font-weight: 700; margin-top: 5px;'>{format_duration(avg_s1)}</div>
             </div>
             """,
@@ -232,8 +228,8 @@ def render_page():
     with tc2:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 15px; border-radius: 8px; border: 1px solid #334155; text-align: center;'>
-                <div style='color: #94A3B8; font-size: 0.8rem;'>Avg NM Finance Review Time</div>
+            <div style='background: var(--secondary-background-color); padding: 15px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.15); text-align: center;'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.8rem;'>Avg NM Finance Review Time</div>
                 <div style='color: #8B5CF6; font-size: 1.25rem; font-weight: 700; margin-top: 5px;'>{format_duration(avg_s2)}</div>
             </div>
             """,
@@ -242,8 +238,8 @@ def render_page():
     with tc3:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 15px; border-radius: 8px; border: 1px solid #334155; text-align: center;'>
-                <div style='color: #94A3B8; font-size: 0.8rem;'>Avg GM/CFO Approval Time</div>
+            <div style='background: var(--secondary-background-color); padding: 15px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.15); text-align: center;'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.8rem;'>Avg GM/CFO Approval Time</div>
                 <div style='color: #F59E0B; font-size: 1.25rem; font-weight: 700; margin-top: 5px;'>{format_duration(avg_s3)}</div>
             </div>
             """,
@@ -252,8 +248,8 @@ def render_page():
     with tc4:
         st.markdown(
             f"""
-            <div style='background: #1E293B; padding: 15px; border-radius: 8px; border: 1px solid #334155; text-align: center;'>
-                <div style='color: #94A3B8; font-size: 0.8rem;'>Avg Total Completion Time</div>
+            <div style='background: var(--secondary-background-color); padding: 15px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.15); text-align: center;'>
+                <div style='color: var(--text-color); opacity: 0.7; font-size: 0.8rem;'>Avg Total Completion Time</div>
                 <div style='color: #10B981; font-size: 1.25rem; font-weight: 700; margin-top: 5px;'>{format_duration(avg_total)}</div>
             </div>
             """,
@@ -291,10 +287,7 @@ def render_page():
         )
         fig_prod.update_layout(
             paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font_color='#F1F5F9',
-            xaxis=dict(gridcolor='#334155'),
-            yaxis=dict(gridcolor='#334155')
+            plot_bgcolor='rgba(0,0,0,0)'
         )
         st.plotly_chart(fig_prod, use_container_width=True)
     else:

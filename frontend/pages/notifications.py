@@ -44,12 +44,12 @@ def render_page():
             
             st.markdown(
                 f"""
-                <div style='border: 1px solid #334155; padding: 15px; border-radius: 8px; margin-bottom: 12px; {box_style}'>
+                <div style='border: 1px solid rgba(128, 128, 128, 0.15); padding: 15px; border-radius: 8px; margin-bottom: 12px; {box_style}'>
                     <div style='display: flex; justify-content: space-between;'>
                         <b>{n['title']}</b>
-                        <span style='font-size: 0.8rem; color: #94A3B8;'>{read_badge} | {notif_time}</span>
+                        <span style='font-size: 0.8rem; color: var(--text-color); opacity: 0.7;'>{read_badge} | {notif_time}</span>
                     </div>
-                    <div style='font-size: 0.9rem; color: #F1F5F9; margin-top: 8px;'>{n['message']}</div>
+                    <div style='font-size: 0.9rem; color: var(--text-color); margin-top: 8px;'>{n['message']}</div>
                 </div>
                 """,
                 unsafe_allow_html=True

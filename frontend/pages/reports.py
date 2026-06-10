@@ -22,7 +22,7 @@ def render_page():
             """
             <div style='background: rgba(79, 70, 229, 0.05); padding: 20px; border-radius: 10px; border: 1px solid rgba(79, 70, 229, 0.1); min-height: 220px;'>
                 <h4 style='color: #4F46E5; margin-top:0;'>📄 PDF Executive Report</h4>
-                <p style='color: #94A3B8; font-size: 0.85rem;'>Styled letter-size document containing workflow metrics, open task lists, and summary diagrams for audit review.</p>
+                <p style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem;'>Styled letter-size document containing workflow metrics, open task lists, and summary diagrams for audit review.</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -47,7 +47,7 @@ def render_page():
             """
             <div style='background: rgba(16, 185, 129, 0.05); padding: 20px; border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.1); min-height: 220px;'>
                 <h4 style='color: #10B981; margin-top:0;'>📊 Multi-Sheet Excel Report</h4>
-                <p style='color: #94A3B8; font-size: 0.85rem;'>Complete data workbook containing sheets for: <b>Tasks Pipeline</b>, <b>User Productivity</b>, and <b>Audit Trail Journal</b>.</p>
+                <p style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem;'>Complete data workbook containing sheets for: <b>Tasks Pipeline</b>, <b>User Productivity</b>, and <b>Audit Trail Journal</b>.</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -72,7 +72,7 @@ def render_page():
             """
             <div style='background: rgba(245, 158, 11, 0.05); padding: 20px; border-radius: 10px; border: 1px solid rgba(245, 158, 11, 0.1); min-height: 220px;'>
                 <h4 style='color: #F59E0B; margin-top:0;'>📝 CSV Data Tables</h4>
-                <p style='color: #94A3B8; font-size: 0.85rem;'>Raw comma-separated value tables. Choose to pull either the <b>Tasks list</b>, <b>Audit Trail</b>, or <b>Evidence registry</b>.</p>
+                <p style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem;'>Raw comma-separated value tables. Choose to pull either the <b>Tasks list</b>, <b>Audit Trail</b>, or <b>Evidence registry</b>.</p>
             </div>
             """,
             unsafe_allow_html=True

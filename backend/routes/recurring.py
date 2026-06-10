@@ -46,7 +46,7 @@ def create_recurring_task(
     if request_data.frequency not in valid_freqs:
         raise HTTPException(status_code=400, detail=f"Invalid frequency. Must be one of {valid_freqs}")
         
-    valid_departments = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"]
+    valid_departments = ["Payroll", "Fund Accounting", "Factory Petty Cash", "Petty Cash", "Audit Schedules"]
     if request_data.department not in valid_departments:
         raise HTTPException(status_code=400, detail=f"Invalid department. Must be one of {valid_departments}")
         

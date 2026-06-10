@@ -3,71 +3,73 @@ import streamlit as st
 def inject_custom_css():
     """
     Injects custom styles to render an Enterprise Grade Finance ERP interface
+    that seamlessly supports both Light and Dark Streamlit themes.
     """
     css = """
     <style>
-    /* Main Layout Customizations */
+    /* Main Layout Customizations adapting to light/dark themes */
     .stApp {
-        background-color: #0F172A; /* Rich Slate Dark Background */
-        color: #F8FAFC;
+        background-color: var(--background-color);
+        color: var(--text-color);
     }
     
     /* Custom Sidebar styling */
     section[data-testid="stSidebar"] {
-        background-color: #1E293B !important;
-        border-right: 1px solid #334155;
+        background-color: var(--secondary-background-color) !important;
+        border-right: 1px solid rgba(128, 128, 128, 0.15);
     }
     
     /* Primary Typography Customization */
     h1, h2, h3, h4, h5, h6 {
-        color: #F1F5F9 !important;
+        color: var(--text-color) !important;
         font-family: 'Outfit', 'Inter', sans-serif !important;
     }
     
     /* Glassmorphism KPI Container */
     .kpi-card {
-        background: rgba(30, 41, 59, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.15);
         border-left: 4px solid #4F46E5; /* Indigo Accent */
         border-radius: 12px;
         padding: 20px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
         margin-bottom: 15px;
         transition: transform 0.2s ease-in-out;
     }
     .kpi-card:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.15);
+        box-shadow: 0 6px 20px rgba(79, 70, 229, 0.12);
     }
     .kpi-title {
         font-size: 0.85rem;
         text-transform: uppercase;
-        color: #94A3B8;
+        color: var(--text-color);
+        opacity: 0.7;
         font-weight: 600;
         letter-spacing: 0.05em;
     }
     .kpi-value {
         font-size: 1.8rem;
         font-weight: 700;
-        color: #F8FAFC;
+        color: var(--text-color);
         margin-top: 5px;
     }
     
     /* Module Card styling */
     .module-card {
-        background: #1E293B;
-        border: 1px solid #334155;
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.15);
         border-radius: 12px;
         padding: 24px;
         text-align: center;
         transition: all 0.3s ease;
         cursor: pointer;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     .module-card:hover {
         border-color: #4F46E5;
-        background: #24324D;
-        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.1);
+        background: rgba(79, 70, 229, 0.08);
+        box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.15);
         transform: translateY(-3px);
     }
     .module-icon {
@@ -77,17 +79,18 @@ def inject_custom_css():
     .module-name {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #F8FAFC;
+        color: var(--text-color);
         margin-bottom: 8px;
     }
     .module-desc {
         font-size: 0.85rem;
-        color: #94A3B8;
+        color: var(--text-color);
+        opacity: 0.7;
     }
     
     /* Task Timeline Info */
     .workflow-timeline {
-        border-left: 2px solid #334155;
+        border-left: 2px solid rgba(128, 128, 128, 0.2);
         margin-left: 10px;
         padding-left: 20px;
         position: relative;
@@ -110,18 +113,19 @@ def inject_custom_css():
     }
     .timeline-title {
         font-weight: 600;
-        color: #E2E8F0;
+        color: var(--text-color);
     }
     .timeline-time {
         font-size: 0.75rem;
-        color: #94A3B8;
+        color: var(--text-color);
+        opacity: 0.7;
     }
     
     /* Corporate Styled Alert Bar */
     .compliance-alert {
-        background-color: rgba(239, 68, 68, 0.1);
+        background-color: rgba(239, 68, 68, 0.08);
         border: 1px solid rgba(239, 68, 68, 0.2);
-        color: #FCA5A5;
+        color: #EF4444;
         padding: 12px 16px;
         border-radius: 8px;
         margin-bottom: 15px;
@@ -145,8 +149,8 @@ def inject_custom_css():
     
     /* Sidebar user detail banner */
     .sidebar-user {
-        background-color: rgba(255,255,255,0.02);
-        border: 1px solid rgba(255,255,255,0.05);
+        background-color: rgba(128,128,128,0.05);
+        border: 1px solid rgba(128,128,128,0.1);
         padding: 12px;
         border-radius: 8px;
         margin-bottom: 20px;
@@ -154,3 +158,44 @@ def inject_custom_css():
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
+
+def show_animated_checkmark(message="Action completed successfully!"):
+    """
+    Displays a smooth CSS-animated checkmark confirmation.
+    """
+    st.markdown(
+        f"""
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 20px 0; animation: fadeIn 0.5s ease-in-out;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" style="width: 56px; height: 56px; border-radius: 50%; display: block; stroke-width: 2; stroke: #fff; stroke-miterlimit: 10; box-shadow: inset 0px 0px 0px #10B981; animation: fill .4s ease-in-out .4s forwards, scale .3s ease-in-out .9s forwards;">
+                <circle cx="26" cy="26" r="25" fill="none" style="stroke-dasharray: 166; stroke-dashoffset: 166; stroke-width: 2; stroke-miterlimit: 10; stroke: #10B981; fill: none; animation: stroke 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;"/>
+                <path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" style="transform-origin: 50% 50%; stroke-dasharray: 48; stroke-dashoffset: 48; animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;"/>
+            </svg>
+            <div style="margin-top: 15px; color: #10B981; font-weight: bold; font-size: 1.1rem; text-align: center;">{message}</div>
+        </div>
+        <style>
+        @keyframes stroke {{
+            100% {{
+                stroke-dashoffset: 0;
+            }}
+        }}
+        @keyframes scale {{
+            0%, 100% {{
+                transform: none;
+            }}
+            50% {{
+                transform: scale3d(1.1, 1.1, 1);
+            }}
+        }}
+        @keyframes fill {{
+            100% {{
+                box-shadow: inset 0px 0px 0px 30px #10B981;
+            }}
+        }}
+        @keyframes fadeIn {{
+            from {{ opacity: 0; transform: translateY(10px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )

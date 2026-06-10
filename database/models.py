@@ -28,7 +28,7 @@ class Task(Base):
     
     # Hierarchical Business Structure Correction
     department = Column(String(100), default="Finance & Payroll", nullable=False, index=True)
-    category = Column(String(100), nullable=False, index=True)  # 'Payroll', 'Fund Accounting', 'Factory Petty Cash', 'Audit Schedules'
+    category = Column(String(100), nullable=False, index=True)  # 'Payroll', 'Fund Accounting', 'Petty Cash', 'Audit Schedules'
     module = synonym("category")
     
     def __init__(self, **kwargs):
@@ -36,7 +36,7 @@ class Task(Base):
         if "module" in kwargs:
             kwargs["category"] = kwargs.pop("module")
         # If department is one of the category values, move it to category and set department to default
-        legacy_departments = {"Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"}
+        legacy_departments = {"Payroll", "Fund Accounting", "Factory Petty Cash", "Petty Cash", "Audit Schedules"}
         if "department" in kwargs and kwargs["department"] in legacy_departments:
             kwargs["category"] = kwargs["department"]
             kwargs["department"] = "Finance & Payroll"
@@ -109,7 +109,7 @@ class RecurringTaskMaster(Base):
     id = Column(Integer, primary_key=True, index=True)
     task_name = Column(String(255), nullable=False)
     department = Column(String(100), default="Finance & Payroll", nullable=False)
-    category = Column(String(100), nullable=False)  # 'Payroll', 'Fund Accounting', 'Factory Petty Cash', 'Audit Schedules'
+    category = Column(String(100), nullable=False)  # 'Payroll', 'Fund Accounting', 'Petty Cash', 'Audit Schedules'
     module = synonym("category")
     
     def __init__(self, **kwargs):
@@ -117,7 +117,7 @@ class RecurringTaskMaster(Base):
         if "module" in kwargs:
             kwargs["category"] = kwargs.pop("module")
         # If department is one of the category values, move it to category and set department to default
-        legacy_departments = {"Payroll", "Fund Accounting", "Factory Petty Cash", "Audit Schedules"}
+        legacy_departments = {"Payroll", "Fund Accounting", "Factory Petty Cash", "Petty Cash", "Audit Schedules"}
         if "department" in kwargs and kwargs["department"] in legacy_departments:
             kwargs["category"] = kwargs["department"]
             kwargs["department"] = "Finance & Payroll"

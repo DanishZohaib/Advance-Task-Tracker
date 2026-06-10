@@ -65,7 +65,10 @@ def render_page():
                     
                 upd_resp = APIClient.post("/api/settings/smtp", json=payload)
                 if upd_resp and upd_resp.status_code == 200:
-                    st.success("SMTP Configuration saved successfully!")
+                    from frontend.styles import show_animated_checkmark
+                    show_animated_checkmark("SMTP Configuration saved successfully!")
+                    import time
+                    time.sleep(1.5)
                     st.rerun()
                 else:
                     detail = upd_resp.json().get("detail", "Failed to save settings.") if upd_resp else "Server connection error."

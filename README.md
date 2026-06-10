@@ -23,7 +23,7 @@ Designed and built by **Danish Zohaib**.
 * **Workflow Categories:**
   * 💰 **Payroll:** Payroll Processing & Disbursement
   * 📊 **Fund Accounting:** Allocations, Ledgers & Bank Reconciliations
-  * 💵 **Factory Petty Cash:** Cash Disbursements & Vouchers
+  * 💵 **Petty Cash:** Cash Disbursements & Vouchers
   * 🛡️ **Audit Schedules:** Internal Controls & Verification
 
 ### 2. Secure Multi-Stage Workflow Gateways

@@ -34,7 +34,7 @@ def render_page():
     categories = [
         {"name": "Payroll", "icon": "💰", "desc": "Payroll Processing & Disbursement"},
         {"name": "Fund Accounting", "icon": "📊", "desc": "Allocations, Ledgers & Bank Recs"},
-        {"name": "Factory Petty Cash", "icon": "💵", "desc": "Cash Disbursements & Vouchers"},
+        {"name": "Petty Cash", "icon": "💵", "desc": "Cash Disbursements & Vouchers"},
         {"name": "Audit Schedules", "icon": "🛡️", "desc": "Internal Controls & Verification"}
     ]
     
@@ -46,7 +46,7 @@ def render_page():
     for idx, c in enumerate(categories):
         with m_cols[idx]:
             card_class = "module-card"
-            border_style = "border-color: #4F46E5; background: #24324D;" if st.session_state["selected_category"] == c["name"] else ""
+            border_style = "border-color: #4F46E5; background: rgba(79, 70, 229, 0.15);" if st.session_state["selected_category"] == c["name"] else ""
             
             st.markdown(
                 f"""
@@ -140,9 +140,9 @@ def render_page():
                                     f"""
                                     <div style='background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px; padding: 10px; margin-bottom: 12px;'>
                                         <span style='color: #EF4444; font-weight: bold;'>⚠️ REJECTION HISTORY DETECTED</span><br>
-                                        <span style='font-size:0.85rem; color:#E2E8F0;'>Total Rejections count: <b>{t['rejection_count']}</b></span><br>
-                                        <span style='font-size:0.85rem; color:#94A3B8;'>Last Rejected by: <b>{t['last_rejected_by']}</b> ({t['last_rejected_stage']})</span><br>
-                                        <span style='font-size:0.85rem; color:#94A3B8;'>Reason: <span style='font-style:italic; color:#F1F5F9;'>"{t['last_rejection_reason']}"</span></span>
+                                        <span style='font-size:0.85rem; color:var(--text-color); opacity: 0.85;'>Total Rejections count: <b>{t['rejection_count']}</b></span><br>
+                                        <span style='font-size:0.85rem; color:var(--text-color); opacity: 0.7;'>Last Rejected by: <b>{t['last_rejected_by']}</b> ({t['last_rejected_stage']})</span><br>
+                                        <span style='font-size:0.85rem; color:var(--text-color); opacity: 0.7;'>Reason: <span style='font-style:italic; color:var(--text-color);'>\"{t['last_rejection_reason']}\"</span></span>
                                     </div>
                                     """,
                                     unsafe_allow_html=True
@@ -168,15 +168,15 @@ def render_page():
                                         
                                     duration_lbl = ""
                                     if act["duration"] > 0:
-                                        duration_lbl = f" | <span style='color:#94A3B8;'>Time in stage:</span> {format_duration(act['duration'])}"
+                                        duration_lbl = f" | <span style='color:var(--text-color); opacity: 0.7;'>Time in stage:</span> {format_duration(act['duration'])}"
                                         
                                     sig_box = ""
                                     if act["digital_signature_hash"]:
                                         sig_box = f"""
                                         <div style='background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 6px; padding: 8px; margin-top: 6px;'>
                                             <span style='color: #10B981; font-weight: bold; font-size: 0.75rem;'>🛡️ SECURE DIGITAL APPROVAL SIGNATURE</span><br>
-                                            <span style='font-size:0.7rem; color:#94A3B8;'>Hash:</span> <code style='font-size:0.68rem; color:#A7F3D0;'>{act['digital_signature_hash']}</code><br>
-                                            <span style='font-size:0.7rem; color:#94A3B8;'>IP:</span> <code style='font-size:0.7rem; color:#E2E8F0;'>{act['ip_address'] or 'Localhost'}</code> | <span style='font-size:0.7rem; color:#94A3B8;'>Device:</span> <span style='font-size:0.7rem; color:#E2E8F0;'>{act['device_info'][:60] + '...' if len(act['device_info']) > 60 else act['device_info']}</span>
+                                            <span style='font-size:0.7rem; color:var(--text-color); opacity: 0.7;'>Hash:</span> <code style='font-size:0.68rem; color:var(--text-color); font-family: monospace; background: rgba(128,128,128,0.1); padding: 2px 4px; border-radius: 4px;'>{act['digital_signature_hash']}</code><br>
+                                            <span style='font-size:0.7rem; color:var(--text-color); opacity: 0.7;'>IP:</span> <code style='font-size:0.7rem; color:var(--text-color); font-family: monospace; background: rgba(128,128,128,0.1); padding: 2px 4px; border-radius: 4px;'>{act['ip_address'] or 'Localhost'}</code> | <span style='font-size:0.7rem; color:var(--text-color); opacity: 0.7;'>Device:</span> <span style='font-size:0.7rem; color:var(--text-color); opacity: 0.85;'>{act['device_info'][:60] + '...' if len(act['device_info']) > 60 else act['device_info']}</span>
                                         </div>
                                         """
                                         
@@ -184,10 +184,10 @@ def render_page():
                                         f"""
                                         <div style='border-left: 3px solid {icon_color}; padding-left: 12px; margin-bottom: 10px;'>
                                             <div style='font-weight: 600; font-size: 0.9rem; color: {icon_color};'>{act['action']}</div>
-                                            <div style='font-size: 0.8rem; color: #94A3B8;'>
+                                            <div style='font-size: 0.8rem; color: var(--text-color); opacity: 0.7;'>
                                                 By <b>{act['username']}</b> ({act['user_role']}) on {act_time}{duration_lbl}
                                             </div>
-                                            <div style='font-size: 0.85rem; color: #E2E8F0; margin-top: 4px; font-style: italic;'>
+                                            <div style='font-size: 0.85rem; color: var(--text-color); opacity: 0.85; margin-top: 4px; font-style: italic;'>
                                                 Remarks: "{act['comments']}"
                                             </div>
                                             {sig_box}
@@ -218,7 +218,7 @@ def render_page():
                             
                             if status_val == "Pending" and (role in ["Payroll Team", "Administrator"]):
                                 st.markdown("##### ⚙️ Action Panel: Complete Payroll (Stage 1)")
-                                with st.form(key=f"stage1_form_{t['id']}"):
+                                with st.form(key=f"stage1_form_{t['id']}", clear_on_submit=True):
                                     s1_comments = st.text_area("Payroll Remarks (Mandatory)", placeholder="Describe actions performed...")
                                     s1_file = st.file_uploader("Upload Evidence Screenshot (Optional)", type=["png", "jpg", "jpeg", "pdf"], key=f"s1_file_{t['id']}")
                                     s1_submit = st.form_submit_button("Complete Stage 1 & Sign-off", use_container_width=True)
@@ -238,7 +238,9 @@ def render_page():
                                                 json={"comments": s1_comments, "evidence_file_id": file_id}
                                             )
                                             if act_resp and act_resp.status_code == 200:
-                                                st.success("Stage 1 completed successfully!")
+                                                from frontend.styles import show_animated_checkmark
+                                                show_animated_checkmark("Stage 1 Payroll sign-off completed!")
+                                                time.sleep(1.5)
                                                 st.rerun()
                                             else:
                                                 det = act_resp.json().get("detail", "Transaction failed.") if act_resp else "Backend unreachable."
@@ -249,7 +251,7 @@ def render_page():
                                 approve_col, reject_col = st.columns(2)
                                 
                                 with approve_col:
-                                    with st.form(key=f"stage2_approve_form_{t['id']}"):
+                                    with st.form(key=f"stage2_approve_form_{t['id']}", clear_on_submit=True):
                                         st.markdown("<h6 style='color:#10B981;'>Forward Task</h6>", unsafe_allow_html=True)
                                         s2_comments = st.text_area("Approval Remarks", placeholder="Add review verification notes...")
                                         s2_submit = st.form_submit_button("Approve Stage 2", use_container_width=True)
@@ -263,14 +265,16 @@ def render_page():
                                                     json={"comments": s2_comments}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
-                                                    st.success("Stage 2 approved successfully!")
+                                                    from frontend.styles import show_animated_checkmark
+                                                    show_animated_checkmark("Stage 2 NM Finance approved!")
+                                                    time.sleep(1.5)
                                                     st.rerun()
                                                 else:
                                                     det = act_resp.json().get("detail", "Transaction failed.") if act_resp else "Backend unreachable."
                                                     st.error(det)
                                                     
                                 with reject_col:
-                                    with st.form(key=f"stage2_reject_form_{t['id']}"):
+                                    with st.form(key=f"stage2_reject_form_{t['id']}", clear_on_submit=True):
                                         st.markdown("<h6 style='color:#EF4444;'>Reject and Return to Payroll Team</h6>", unsafe_allow_html=True)
                                         s2_reject_comments = st.text_area("Rejection Comments", placeholder="Explain the corrections required...")
                                         s2_reject_submit = st.form_submit_button("Reject back to Stage 1", use_container_width=True)
@@ -284,7 +288,9 @@ def render_page():
                                                     json={"comments": s2_reject_comments}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
-                                                    st.success("Task rejected back to Payroll.")
+                                                    from frontend.styles import show_animated_checkmark
+                                                    show_animated_checkmark("Task returned to Payroll!")
+                                                    time.sleep(1.5)
                                                     st.rerun()
                                                 else:
                                                     det = act_resp.json().get("detail", "Rejection failed.") if act_resp else "Backend unreachable."
@@ -295,7 +301,7 @@ def render_page():
                                 approve_col3, reject_col3 = st.columns(2)
                                 
                                 with approve_col3:
-                                    with st.form(key=f"stage3_approve_form_{t['id']}"):
+                                    with st.form(key=f"stage3_approve_form_{t['id']}", clear_on_submit=True):
                                         st.markdown("<h6 style='color:#10B981;'>Finalize & Complete Task</h6>", unsafe_allow_html=True)
                                         s3_comments = st.text_area("Final Release Remarks", placeholder="Final release release instructions...")
                                         s3_submit = st.form_submit_button("Approve & Close Task", use_container_width=True)
@@ -309,14 +315,16 @@ def render_page():
                                                     json={"comments": s3_comments}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
-                                                    st.success("Task fully completed!")
+                                                    from frontend.styles import show_animated_checkmark
+                                                    show_animated_checkmark("Stage 3 GM/CFO approved & closed!")
+                                                    time.sleep(1.5)
                                                     st.rerun()
                                                 else:
                                                     det = act_resp.json().get("detail", "Transaction failed.") if act_resp else "Backend unreachable."
                                                     st.error(det)
                                                     
                                 with reject_col3:
-                                    with st.form(key=f"stage3_reject_form_{t['id']}"):
+                                    with st.form(key=f"stage3_reject_form_{t['id']}", clear_on_submit=True):
                                         st.markdown("<h6 style='color:#EF4444;'>Reject Task</h6>", unsafe_allow_html=True)
                                         target_stage = st.radio("Target Stage for Rejection", options=["NM Finance", "Payroll"], help="Choose which stage queue to return the task to.")
                                         s3_reject_comments = st.text_area("Rejection Comments", placeholder="Explain corrections required...")
@@ -331,7 +339,9 @@ def render_page():
                                                     json={"comments": s3_reject_comments, "target_stage": target_stage}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
-                                                    st.success(f"Task successfully returned to {target_stage}.")
+                                                    from frontend.styles import show_animated_checkmark
+                                                    show_animated_checkmark(f"Task returned to {target_stage}!")
+                                                    time.sleep(1.5)
                                                     st.rerun()
                                                 else:
                                                     det = act_resp.json().get("detail", "Rejection failed.") if act_resp else "Backend unreachable."
@@ -350,7 +360,7 @@ def render_page():
                                 st.markdown("##### 🔒 Admin Controls")
                                 edit_toggle = st.toggle("Edit Fields", key=f"edit_toggle_{t['id']}")
                                 if edit_toggle:
-                                    with st.form(key=f"edit_form_{t['id']}"):
+                                    with st.form(key=f"edit_form_{t['id']}", clear_on_submit=True):
                                         e_title = st.text_input("Task Title", value=t["task_title"])
                                         e_desc = st.text_area("Task Description", value=t["task_description"] or "")
                                         e_submit = st.form_submit_button("Save Edits")
@@ -360,7 +370,9 @@ def render_page():
                                                 json={"task_title": e_title, "task_description": e_desc}
                                             )
                                             if edit_resp and edit_resp.status_code == 200:
-                                                st.success("Task updated.")
+                                                from frontend.styles import show_animated_checkmark
+                                                show_animated_checkmark("Task details updated!")
+                                                time.sleep(1.5)
                                                 st.rerun()
                                             else:
                                                 det = edit_resp.json().get("detail", "Edit failed.") if edit_resp else "Backend unreachable."
@@ -369,7 +381,9 @@ def render_page():
                                 if st.button("Archive Task (Soft Delete)", key=f"archive_btn_{t['id']}", use_container_width=True):
                                     arc_resp = APIClient.post(f"/api/tasks/{t['id']}/archive")
                                     if arc_resp and arc_resp.status_code == 200:
-                                        st.success("Task archived successfully.")
+                                        from frontend.styles import show_animated_checkmark
+                                        show_animated_checkmark("Task archived successfully!")
+                                        time.sleep(1.5)
                                         st.rerun()
                                     else:
                                         st.error("Failed to archive task.")
@@ -403,8 +417,8 @@ def render_page():
                                         sig_box = f"""
                                         <div style='background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 6px; padding: 10px; margin-top: 8px;'>
                                             <span style='color: #10B981; font-weight: bold; font-size: 0.78rem;'>🛡️ SECURE DIGITAL APPROVAL STAMP</span><br>
-                                            <span style='font-size:0.75rem; color:#94A3B8;'>Certificate Hash:</span> <code style='font-size:0.72rem; color:#A7F3D0;'>{act['digital_signature_hash']}</code><br>
-                                            <span style='font-size:0.75rem; color:#94A3B8;'>Verified IP:</span> <code style='font-size:0.75rem; color:#E2E8F0;'>{act['ip_address'] or 'Localhost'}</code> | <span style='font-size:0.75rem; color:#94A3B8;'>Device:</span> <span style='font-size:0.75rem; color:#E2E8F0;'>{act['device_info']}</span>
+                                            <span style='font-size:0.75rem; color:var(--text-color); opacity: 0.7;'>Certificate Hash:</span> <code style='font-size:0.72rem; color:var(--text-color); font-family: monospace; background: rgba(128,128,128,0.1); padding: 2px 4px; border-radius: 4px;'>{act['digital_signature_hash']}</code><br>
+                                            <span style='font-size:0.75rem; color:var(--text-color); opacity: 0.7;'>Verified IP:</span> <code style='font-size:0.75rem; color:var(--text-color); font-family: monospace; background: rgba(128,128,128,0.1); padding: 2px 4px; border-radius: 4px;'>{act['ip_address'] or 'Localhost'}</code> | <span style='font-size:0.75rem; color:var(--text-color); opacity: 0.7;'>Device:</span> <span style='font-size:0.75rem; color:var(--text-color); opacity: 0.85;'>{act['device_info']}</span>
                                         </div>
                                         """
                                         
@@ -412,10 +426,10 @@ def render_page():
                                         f"""
                                         <div style='border-left: 3px solid #10B981; padding-left: 12px; margin-bottom: 12px;'>
                                             <div style='font-weight: 600; font-size: 0.9rem; color: #10B981;'>{act['action']}</div>
-                                            <div style='font-size: 0.8rem; color: #94A3B8;'>
+                                            <div style='font-size: 0.8rem; color: var(--text-color); opacity: 0.7;'>
                                                 By <b>{act['username']}</b> ({act['user_role']}) on {act_time}
                                             </div>
-                                            <div style='font-size: 0.85rem; color: #E2E8F0; margin-top: 4px; font-style: italic;'>
+                                            <div style='font-size: 0.85rem; color: var(--text-color); opacity: 0.85; margin-top: 4px; font-style: italic;'>
                                                 Remarks: "{act['comments']}"
                                             </div>
                                             {sig_box}
@@ -432,7 +446,7 @@ def render_page():
     # Tab 2: Create Task
     with tab_create:
         st.markdown("### ➕ Add Compliance Task to Pipeline")
-        with st.form("create_task_form"):
+        with st.form("create_task_form", clear_on_submit=True):
             new_title = st.text_input("Task Title *")
             new_description = st.text_area("Task Description / Instructions")
             sla_days = st.number_input("SLA Completion Days Limit", min_value=1, max_value=90, value=7)
@@ -452,9 +466,9 @@ def render_page():
                         }
                     )
                     if resp and resp.status_code == 200:
-                        st.success(f"Task successfully registered in the {st.session_state['selected_category']} workspace pipeline!")
-                        st.balloons()
-                        time.sleep(1)
+                        from frontend.styles import show_animated_checkmark
+                        show_animated_checkmark("Task registered successfully!")
+                        time.sleep(1.5)
                         st.rerun()
                     else:
                         detail = resp.json().get("detail", "Creation failed.") if resp else "Backend unreachable."
@@ -469,7 +483,7 @@ def render_page():
             # Serve download template file
             csv_template = "Task Name,Category,Frequency,Description,Responsible Role,Reminder Days,Start Date,End Date,Priority\n" \
                            "Weekly payroll run check,Payroll,Weekly,Verify payroll sheets against banks,Payroll Team,1,2026-06-10,,Normal\n" \
-                           "Petty Cash Balance Count,Factory Petty Cash,Daily,Count factory safe petty cash reserves,Payroll Team,1,2026-06-10,,High\n" \
+                           "Petty Cash Balance Count,Petty Cash,Daily,Count factory safe petty cash reserves,Payroll Team,1,2026-06-10,,High\n" \
                            "Quarterly GST Return,Fund Accounting,Quarterly,Compile ledgers and file GST returns,NM Finance,3,2026-06-10,,Normal\n"
                            
             st.download_button(
@@ -491,9 +505,8 @@ def render_page():
                             
                             if imp_resp and imp_resp.status_code == 200:
                                 result_data = imp_resp.json()
-                                st.success(f"Successfully imported **{result_data['success_count']}** templates!")
-                                
                                 if result_data['failure_count'] > 0:
+                                    st.success(f"Successfully imported **{result_data['success_count']}** templates!")
                                     st.warning(f"Failed to import **{result_data['failure_count']}** templates due to format/validation errors.")
                                     
                                     # Render errors table
@@ -505,7 +518,10 @@ def render_page():
                                         })
                                     st.table(errors_table)
                                 else:
-                                    st.balloons()
+                                    from frontend.styles import show_animated_checkmark
+                                    show_animated_checkmark(f"All {result_data['success_count']} templates imported successfully!")
+                                    time.sleep(1.5)
+                                    st.rerun()
                             else:
                                 detail = imp_resp.json().get("detail", "Excel validation failed.") if imp_resp else "Backend connection error."
                                 st.error(detail)
