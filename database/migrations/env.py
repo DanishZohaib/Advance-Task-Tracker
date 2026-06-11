@@ -14,7 +14,11 @@ if config.config_file_name is not None:
 
 # Import models to provide metadata reference to Alembic auto-generation
 from database.connection import Base, DATABASE_URL
-from database.models import User, Task, RecurringTaskMaster, EvidenceFile, Notification, AuditLog
+from database.models import (
+    User, Task, RecurringTaskMaster, EvidenceFile, Notification, AuditLog,
+    Role, WorkflowDefinition, WorkflowStep, TaskAssignment, TaskComment,
+    TaskReturn, TaskRejection, TaskApproval, UserHierarchy, ApprovalMatrix
+)
 
 target_metadata = Base.metadata
 

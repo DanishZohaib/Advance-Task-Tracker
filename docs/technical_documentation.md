@@ -164,6 +164,11 @@ All routes are prefixed with `/api`.
   - `POST /{id}/approve-nmfinance`: Stage 2 verification (NM Finance only).
   - `POST /{id}/approve-gmcfo`: Stage 3 final approval (GM/CFO only).
   - `POST /{id}/archive`: Soft archives active tasks (deletes prohibited).
+  - `POST /{id}/whatsapp-nudge`: Logs and registers a WhatsApp nudge alert in task timeline and audit logs.
+- **Recurring Templates (`/recurring`)**:
+  - `POST /`: Registers a master schedule template.
+  - `GET /`: Lists all registered master schedule templates.
+  - `PUT /{id}`: Modifies/updates scheduling template details (any field is fully editable).
 - **Files (`/files`)**:
   - `POST /upload`: Uploads screenshot proof (deduplicates using SHA256).
   - `GET /download/{id}`: Streams the original file.

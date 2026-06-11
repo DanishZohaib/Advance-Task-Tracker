@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from database.connection import get_db
-from database.models import Task, User, Notification, EvidenceFile, WorkflowActivity
+from database.models import (
+    Task, User, Notification, EvidenceFile, WorkflowActivity,
+    Role, TaskAssignment, TaskComment, TaskReturn, TaskRejection, TaskApproval, UserHierarchy, WorkflowDefinition, WorkflowStep
+)
 from backend.security import get_current_user, RoleChecker
 from backend.utils import log_audit
 from backend.smtp_helper import send_smtp_email
@@ -37,6 +40,16 @@ class Stage3Complete(BaseModel):
 class RejectionRequest(BaseModel):
     comments: str = Field(..., min_length=1)
     target_stage: Optional[str] = None  # 'Payroll' or 'NM Finance' (Only for CFO)
+
+class TaskActionRequest(BaseModel):
+    action: str  # 'Complete', 'Reject', 'Return', 'Forward'
+    comments: str = Field(..., min_length=1)
+    evidence_file_id: Optional[int] = None
+    target_stage: Optional[str] = None  # 'NM Finance' or 'Manager' for returns
+
+class WhatsAppNudgeRequest(BaseModel):
+    recipient_phone: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
 
 # Digital signature helper
 def generate_approval_hash(task_id: int, username: str, role: str, timestamp: datetime, comments: str, ip: str, device: str) -> str:
@@ -104,6 +117,425 @@ def create_workflow_notifications(db: Session, task: Task, target_role: str, tit
         )
         db.add(notification)
     db.commit()
+
+def process_task_workflow_action(
+    db: Session,
+    task: Task,
+    user: User,
+    action: str,  # 'Complete', 'Reject', 'Return', 'Forward'
+    comments: str,
+    evidence_file_id: Optional[int] = None,
+    target_stage: Optional[str] = None,
+    request: Request = None
+):
+    if evidence_file_id:
+        file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == evidence_file_id).first()
+        if not file_entry:
+            raise HTTPException(status_code=400, detail="Evidence file not found")
+
+    current_status = task.status
+    if current_status in ["Pending", "Returned to Initiator"]:
+        current_stage_role = "Manager"
+        step_number = 1
+    elif current_status == "Payroll Completed":
+        current_stage_role = "NM Finance"
+        step_number = 2
+    elif current_status == "NM Finance Approved":
+        current_stage_role = "GM/CFO"
+        step_number = 3
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Task is in locked status '{current_status}' and cannot be actioned."
+        )
+
+    # Check user role authorization
+    # Administrators can bypass
+    if user.role != "Administrator" and user.role != current_stage_role:
+        if user.role == "Payroll Team" and current_stage_role == "Manager":
+            pass
+        else:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Unauthorized to perform action. Required role: '{current_stage_role}', Your role: '{user.role}'."
+            )
+
+    now = datetime.utcnow()
+    ip_addr = request.client.host if request and request.client else "Localhost"
+    user_agent = request.headers.get("user-agent", "Unknown Device") if request else "System"
+
+    # Validate comment (mandatory for all actions)
+    if not comments or not comments.strip():
+        raise HTTPException(status_code=400, detail="Remarks comments are mandatory for all workflow actions.")
+
+    # 1. Log comment in task_comments table
+    db_comment = TaskComment(
+        task_id=task.id,
+        user_id=user.id,
+        username=user.username,
+        user_role=user.role,
+        comment_text=comments,
+        action=action,
+        timestamp=now
+    )
+    db.add(db_comment)
+
+    # Generate Digital Signature Hash
+    sig_hash = generate_approval_hash(
+        task_id=task.id,
+        username=user.username,
+        role=user.role,
+        timestamp=now,
+        comments=comments,
+        ip=ip_addr,
+        device=user_agent
+    )
+
+    action_label = ""
+    next_role = None
+
+    if action == "Complete":
+        if current_stage_role == "Manager":
+            task.status = "Completed By Manager"
+            task.payroll_completed_at = now
+            task.payroll_completed_by_id = user.id
+            task.payroll_comments = comments
+            task.payroll_processing_time = (now - task.created_at).total_seconds()
+            task.total_completion_time = task.payroll_processing_time
+            action_label = "Completed By Manager"
+        elif current_stage_role == "NM Finance":
+            task.status = "Completed By NM Finance"
+            task.nm_finance_approved_at = now
+            task.nm_finance_approved_by_id = user.id
+            task.nm_finance_comments = comments
+            task.nm_finance_processing_time = (now - (task.payroll_completed_at or task.created_at)).total_seconds()
+            task.total_completion_time = (now - task.created_at).total_seconds()
+            action_label = "Completed By NM Finance"
+        elif current_stage_role == "GM/CFO":
+            task.status = "GM/CFO Approved"
+            task.gmcfo_approved_at = now
+            task.gmcfo_approved_by_id = user.id
+            task.gmcfo_comments = comments
+            task.gmcfo_processing_time = (now - (task.nm_finance_approved_at or task.created_at)).total_seconds()
+            task.total_completion_time = (now - task.created_at).total_seconds()
+            action_label = "Completed By GM/CFO"
+            
+        task.actual_completion_date = now
+
+        # Add to task_approvals table
+        approval = TaskApproval(
+            task_id=task.id,
+            approved_by=user.username,
+            approved_stage=current_stage_role,
+            approved_at=now,
+            comments=comments
+        )
+        db.add(approval)
+
+        # Log timeline event
+        log_workflow_activity(
+            db=db,
+            task=task,
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            action=f"Completed",
+            comments=comments,
+            request=request,
+            digital_signature_hash=sig_hash
+        )
+
+        # Audit log completion
+        log_audit(
+            db=db,
+            username=user.username,
+            action_type="Workflow Actions",
+            request=request,
+            user_id=user.id,
+            task_id=task.id,
+            details=f"Task completed at stage {current_stage_role}. Status: {task.status}."
+        )
+
+        # Notify initiator
+        creator = db.query(User).filter(User.id == task.created_by_id).first()
+        if creator:
+            notification = Notification(
+                user_id=creator.id,
+                title="Task Completed",
+                message=f"Your task #{task.id} has been completed. Status: '{task.status}'."
+            )
+            db.add(notification)
+            send_smtp_email(
+                db=db,
+                event_type="Task Approved",
+                recipient=f"{creator.username}@company.com",
+                subject=f"Completed: Task #{task.id}",
+                body=f"Your task #{task.id} '{task.task_title}' has been marked as {task.status} by {user.username}."
+            )
+
+    elif action == "Forward":
+        if current_stage_role == "Manager":
+            task.status = "Payroll Completed"
+            task.payroll_completed_at = now
+            task.payroll_completed_by_id = user.id
+            task.payroll_comments = comments
+            task.payroll_processing_time = (now - task.created_at).total_seconds()
+            
+            if evidence_file_id:
+                file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == evidence_file_id).first()
+                if file_entry:
+                    file_entry.task_id = task.id
+                    file_entry.workflow_stage = "Payroll"
+                    file_entry.status = "Pending Review"
+                    task.payroll_evidence_file_id = evidence_file_id
+            
+            next_role = "NM Finance"
+            action_label = "Task Forwarded"
+            
+        elif current_stage_role == "NM Finance":
+            task.status = "NM Finance Approved"
+            task.nm_finance_approved_at = now
+            task.nm_finance_approved_by_id = user.id
+            task.nm_finance_comments = comments
+            task.nm_finance_processing_time = (now - (task.payroll_completed_at or task.created_at)).total_seconds()
+            
+            if task.payroll_evidence_file_id:
+                file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == task.payroll_evidence_file_id).first()
+                if file_entry:
+                    file_entry.status = "Approved"
+                    file_entry.approved_by_id = user.id
+                    file_entry.approved_at = now
+                    
+            next_role = "GM/CFO"
+            action_label = "Task Forwarded"
+
+        # Log timeline event
+        log_workflow_activity(
+            db=db,
+            task=task,
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            action=action_label,
+            comments=comments,
+            request=request,
+            evidence_file_id=evidence_file_id or task.payroll_evidence_file_id,
+            digital_signature_hash=sig_hash
+        )
+
+        # Audit log forward
+        log_audit(
+            db=db,
+            username=user.username,
+            action_type="Workflow Actions",
+            request=request,
+            user_id=user.id,
+            task_id=task.id,
+            details=f"Task forwarded at stage {current_stage_role}. Status: {task.status}. Next assignee: {next_role}."
+        )
+
+        # Create Assignment record
+        assignment = TaskAssignment(
+            task_id=task.id,
+            assigned_role=next_role,
+            assigned_at=now,
+            status="Pending"
+        )
+        db.add(assignment)
+
+        # Notify Next Role
+        create_workflow_notifications(
+            db=db,
+            task=task,
+            target_role=next_role,
+            title="Task Assigned to your queue",
+            message=f"Task #{task.id} is pending action at {next_role} stage."
+        )
+
+        next_users = db.query(User).filter(User.role == next_role, User.is_active == True).all()
+        for nu in next_users:
+            send_smtp_email(
+                db=db,
+                event_type="New Task Assigned",
+                recipient=f"{nu.username}@company.com",
+                subject=f"Action Required: Task #{task.id} Forwarded to {next_role}",
+                body=f"Task #{task.id} '{task.task_title}' was forwarded to {next_role} queue and is pending review."
+            )
+
+    elif action == "Return":
+        prev_returns = db.query(TaskReturn).filter(TaskReturn.task_id == task.id).count()
+        return_count = prev_returns + 1
+
+        # Update task rejection cache for backward compatibility
+        task.rejection_count = task.rejection_count + 1
+        task.last_rejected_by_id = user.id
+        task.last_rejected_at = now
+        task.last_rejected_stage = current_stage_role
+        task.last_rejection_reason = comments
+
+        returned_to_role = ""
+        returned_to_user = None
+
+        if current_stage_role == "Manager":
+            initiator = db.query(User).filter(User.id == task.created_by_id).first()
+            returned_to_role = initiator.role if initiator else "Assistant Manager"
+            returned_to_user = initiator.username if initiator else "initiator"
+            task.status = "Returned to Initiator"
+            
+        elif current_stage_role == "NM Finance":
+            returned_to_role = "Manager"
+            returned_to_user = "payroll_user"
+            task.status = "Pending"
+            task.payroll_completed_at = None
+            task.payroll_completed_by_id = None
+            
+        elif current_stage_role == "GM/CFO":
+            if target_stage in ["Manager", "Payroll"]:
+                returned_to_role = "Manager"
+                returned_to_user = "payroll_user"
+                task.status = "Pending"
+                task.payroll_completed_at = None
+                task.payroll_completed_by_id = None
+                task.nm_finance_approved_at = None
+                task.nm_finance_approved_by_id = None
+            else:
+                returned_to_role = "NM Finance"
+                returned_to_user = "finance_user"
+                task.status = "Payroll Completed"
+                task.nm_finance_approved_at = None
+                task.nm_finance_approved_by_id = None
+
+        # Create Return entry
+        db_return = TaskReturn(
+            task_id=task.id,
+            returned_by=user.username,
+            returned_to=returned_to_user,
+            return_reason=comments,
+            return_date=now,
+            return_count=return_count
+        )
+        db.add(db_return)
+
+        # Log timeline event
+        log_workflow_activity(
+            db=db,
+            task=task,
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            action=f"Task Returned",
+            comments=comments,
+            request=request
+        )
+
+        if task.payroll_evidence_file_id:
+            file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == task.payroll_evidence_file_id).first()
+            if file_entry:
+                file_entry.status = "Rejected"
+                file_entry.rejection_reason = comments
+
+        log_audit(
+            db=db,
+            username=user.username,
+            action_type="Workflow Actions",
+            request=request,
+            user_id=user.id,
+            task_id=task.id,
+            details=f"Task returned to {returned_to_role}. Return count: {return_count}."
+        )
+
+        if returned_to_role == "Manager":
+            create_workflow_notifications(db=db, task=task, target_role="Manager", title="Task Returned", message=f"Task #{task.id} was returned to your stage. Reason: {comments}")
+        elif returned_to_role == "NM Finance":
+            create_workflow_notifications(db=db, task=task, target_role="NM Finance", title="Task Returned", message=f"Task #{task.id} was returned to your stage. Reason: {comments}")
+        else:
+            initiator = db.query(User).filter(User.id == task.created_by_id).first()
+            if initiator:
+                notification = Notification(
+                    user_id=initiator.id,
+                    title="Task Returned",
+                    message=f"Your task #{task.id} was returned to you. Reason: '{comments}'"
+                )
+                db.add(notification)
+
+        target_users = db.query(User).filter(User.role == returned_to_role, User.is_active == True).all()
+        for tu in target_users:
+            send_smtp_email(
+                db=db,
+                event_type="Task Returned",
+                recipient=f"{tu.username}@company.com",
+                subject=f"TASK RETURNED: Task #{task.id}",
+                body=f"Task #{task.id} '{task.task_title}' was returned to your queue by {user.username}.\n\nReason: {comments}"
+            )
+
+    elif action == "Reject":
+        prev_rejections = db.query(TaskRejection).filter(TaskRejection.task_id == task.id).count()
+        rejection_count = prev_rejections + 1
+
+        task.status = "Rejected"
+        task.rejection_count = rejection_count
+        task.last_rejected_by_id = user.id
+        task.last_rejected_at = now
+        task.last_rejected_stage = current_stage_role
+        task.last_rejection_reason = comments
+
+        # Create Rejection entry
+        db_rejection = TaskRejection(
+            task_id=task.id,
+            rejected_by=user.username,
+            rejected_date=now,
+            rejection_reason=comments,
+            rejection_stage=current_stage_role,
+            rejection_count=rejection_count
+        )
+        db.add(db_rejection)
+
+        # Log timeline event
+        log_workflow_activity(
+            db=db,
+            task=task,
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            action=f"Task Rejected",
+            comments=comments,
+            request=request
+        )
+
+        if task.payroll_evidence_file_id:
+            file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == task.payroll_evidence_file_id).first()
+            if file_entry:
+                file_entry.status = "Rejected"
+                file_entry.rejection_reason = comments
+
+        log_audit(
+            db=db,
+            username=user.username,
+            action_type="Workflow Actions",
+            request=request,
+            user_id=user.id,
+            task_id=task.id,
+            details=f"Task rejected at stage {current_stage_role}. Rejection count: {rejection_count}."
+        )
+
+        creator = db.query(User).filter(User.id == task.created_by_id).first()
+        if creator:
+            notification = Notification(
+                user_id=creator.id,
+                title="Task Rejected",
+                message=f"Your task #{task.id} has been rejected by {user.username}. Reason: {comments}"
+            )
+            db.add(notification)
+            send_smtp_email(
+                db=db,
+                event_type="Task Returned",
+                recipient=f"{creator.username}@company.com",
+                subject=f"TASK REJECTED: Task #{task.id}",
+                body=f"Your task #{task.id} '{task.task_title}' was rejected by {user.username}.\n\nReason: {comments}"
+            )
+
+    db.commit()
+    return {"message": "Action processed successfully", "status": task.status}
 
 # Helper to map task status code details
 def map_task_details(t: Task, now: datetime):
@@ -236,6 +668,18 @@ def create_task(
     db.commit()
     db.refresh(task)
     
+    # 1. Create task assignment for Manager
+    manager_user = db.query(User).filter(User.role == "Manager", User.is_active == True).first()
+    assignment = TaskAssignment(
+        task_id=task.id,
+        assigned_role="Manager",
+        assigned_user_id=manager_user.id if manager_user else None,
+        assigned_at=now,
+        status="Pending"
+    )
+    db.add(assignment)
+    db.commit()
+    
     # Timeline initial logger
     log_workflow_activity(
         db=db,
@@ -259,24 +703,24 @@ def create_task(
         details=f"Task #{task.id} '{task.task_title}' created under category '{task.category}'."
     )
     
-    # Send notification email using helper
+    # Send notification email using helper to Manager
     create_workflow_notifications(
         db=db,
         task=task,
-        target_role="Payroll Team",
+        target_role="Manager",
         title="New Task Created",
-        message=f"Task #{task.id} '{task.task_title}' is assigned to Payroll Team Stage 1 queue."
+        message=f"Task #{task.id} '{task.task_title}' is assigned to Manager queue."
     )
     
     # Dispatch email
-    payroll_users = db.query(User).filter(User.role == "Payroll Team", User.is_active == True).all()
-    for u in payroll_users:
+    manager_users = db.query(User).filter(User.role == "Manager", User.is_active == True).all()
+    for u in manager_users:
          send_smtp_email(
              db=db,
              event_type="New Task Assigned",
              recipient=f"{u.username}@company.com",
              subject=f"New Task Assigned: Task #{task.id}",
-             body=f"Task #{task.id} '{task.task_title}' has been registered and is pending your Stage 1 sign-off."
+             body=f"Task #{task.id} '{task.task_title}' has been registered and is pending your sign-off/review."
          )
          
     return {"message": "Task created successfully", "task_id": task.id}
@@ -414,86 +858,17 @@ def complete_payroll_stage(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
-    if task.status != "Pending":
-        raise HTTPException(status_code=400, detail="Task is not in 'Pending' stage")
-        
-    # Link evidence
-    if request_data.evidence_file_id:
-        file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == request_data.evidence_file_id).first()
-        if not file_entry:
-            raise HTTPException(status_code=400, detail="Selected evidence file does not exist")
-        file_entry.task_id = task.id
-        file_entry.workflow_stage = "Payroll"
-        file_entry.status = "Pending Review"
-        task.payroll_evidence_file_id = request_data.evidence_file_id
-        
-    now = datetime.utcnow()
-    task.status = "Payroll Completed"
-    task.payroll_completed_at = now
-    task.payroll_completed_by_id = current_user.id
-    task.payroll_comments = request_data.comments
-    
-    # Calculate Stage 1 duration
-    duration = (now - task.created_at).total_seconds()
-    task.payroll_processing_time = duration
-    
-    # Generate Digital Signature Hash
-    sig_hash = generate_approval_hash(
-        task_id=task.id,
-        username=current_user.username,
-        role=current_user.role,
-        timestamp=now,
-        comments=request_data.comments,
-        ip=request.client.host if request.client else None,
-        device=request.headers.get("user-agent", "Unknown Device")
-    )
-    
-    # Log Workflow Timeline activity
-    log_workflow_activity(
+    if task.status not in ["Pending", "Returned to Initiator"]:
+        raise HTTPException(status_code=400, detail="Task is not in 'Pending' stage.")
+    process_task_workflow_action(
         db=db,
         task=task,
-        user_id=current_user.id,
-        username=current_user.username,
-        role=current_user.role,
-        action="Payroll Completed (Stage 1 Sign-off)",
+        user=current_user,
+        action="Forward",
         comments=request_data.comments,
-        request=request,
         evidence_file_id=request_data.evidence_file_id,
-        digital_signature_hash=sig_hash
+        request=request
     )
-    
-    # Audit log
-    log_audit(
-        db=db,
-        username=current_user.username,
-        action_type="Workflow Actions",
-        request=request,
-        user_id=current_user.id,
-        task_id=task.id,
-        details=f"Stage 1 (Payroll) completed. Remarks: '{request_data.comments}'"
-    )
-    
-    # Notify NM Finance
-    create_workflow_notifications(
-        db=db,
-        task=task,
-        target_role="NM Finance",
-        title="Task Pending NM Finance Review",
-        message=f"Task #{task.id} is pending NM Finance Stage 2 review."
-    )
-    
-    # Dispatch email
-    finance_users = db.query(User).filter(User.role == "NM Finance", User.is_active == True).all()
-    for u in finance_users:
-         send_smtp_email(
-             db=db,
-             event_type="Task Approved",
-             recipient=f"{u.username}@company.com",
-             subject=f"Action Required: Task #{task.id} Forwarded to NM Finance",
-             body=f"Task #{task.id} '{task.task_title}' was signed off by Payroll Team and is pending your Stage 2 approval."
-         )
-         
     return {"message": "Stage 1 (Payroll) completed successfully"}
 
 @router.post("/{task_id}/approve-nmfinance")
@@ -507,83 +882,16 @@ def approve_nmfinance_stage(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
     if task.status != "Payroll Completed":
-        raise HTTPException(status_code=400, detail="Task is not in 'Payroll Completed' stage")
-        
-    now = datetime.utcnow()
-    task.status = "NM Finance Approved"
-    task.nm_finance_approved_at = now
-    task.nm_finance_approved_by_id = current_user.id
-    task.nm_finance_comments = request_data.comments
-    
-    # Calculate Stage 2 duration
-    duration = (now - task.payroll_completed_at).total_seconds()
-    task.nm_finance_processing_time = duration
-    
-    # Generate Digital Signature Hash
-    sig_hash = generate_approval_hash(
-        task_id=task.id,
-        username=current_user.username,
-        role=current_user.role,
-        timestamp=now,
-        comments=request_data.comments,
-        ip=request.client.host if request.client else None,
-        device=request.headers.get("user-agent", "Unknown Device")
-    )
-    
-    # Log Workflow activity
-    log_workflow_activity(
+        raise HTTPException(status_code=400, detail="Task is not in 'Payroll Completed' stage.")
+    process_task_workflow_action(
         db=db,
         task=task,
-        user_id=current_user.id,
-        username=current_user.username,
-        role=current_user.role,
-        action="NM Finance Approved (Stage 2 Sign-off)",
+        user=current_user,
+        action="Forward",
         comments=request_data.comments,
-        request=request,
-        digital_signature_hash=sig_hash
+        request=request
     )
-    
-    # Set evidence file status to Approved if attached
-    if task.payroll_evidence_file_id:
-        file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == task.payroll_evidence_file_id).first()
-        if file_entry:
-            file_entry.status = "Approved"
-            file_entry.approved_by_id = current_user.id
-            file_entry.approved_at = now
-            
-    # Audit log
-    log_audit(
-        db=db,
-        username=current_user.username,
-        action_type="Workflow Actions",
-        request=request,
-        user_id=current_user.id,
-        task_id=task.id,
-        details=f"Stage 2 (NM Finance) approved. Remarks: '{request_data.comments}'"
-    )
-    
-    # Notify GM/CFO
-    create_workflow_notifications(
-        db=db,
-        task=task,
-        target_role="GM/CFO",
-        title="Task Pending GM/CFO Approval",
-        message=f"Task #{task.id} is pending GM/CFO Stage 3 release."
-    )
-    
-    # Dispatch email
-    cfo_users = db.query(User).filter(User.role == "GM/CFO", User.is_active == True).all()
-    for u in cfo_users:
-         send_smtp_email(
-             db=db,
-             event_type="Task Approved",
-             recipient=f"{u.username}@company.com",
-             subject=f"Action Required: Task #{task.id} Forwarded to GM/CFO",
-             body=f"Task #{task.id} '{task.task_title}' was verified by NM Finance and is pending your final Stage 3 approval release."
-         )
-         
     return {"message": "Stage 2 (NM Finance) approved successfully"}
 
 @router.post("/{task_id}/approve-gmcfo")
@@ -597,80 +905,16 @@ def approve_gmcfo_stage(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
     if task.status != "NM Finance Approved":
-        raise HTTPException(status_code=400, detail="Task is not in 'NM Finance Approved' stage")
-        
-    now = datetime.utcnow()
-    task.status = "GM/CFO Approved"
-    task.gmcfo_approved_at = now
-    task.gmcfo_approved_by_id = current_user.id
-    task.gmcfo_comments = request_data.comments
-    task.actual_completion_date = now
-    
-    # Calculate Stage 3 duration
-    duration = (now - task.nm_finance_approved_at).total_seconds()
-    task.gmcfo_processing_time = duration
-    
-    # Calculate total duration
-    total_duration = (now - task.created_at).total_seconds()
-    task.total_completion_time = total_duration
-    
-    # Generate Digital Signature Hash
-    sig_hash = generate_approval_hash(
-        task_id=task.id,
-        username=current_user.username,
-        role=current_user.role,
-        timestamp=now,
-        comments=request_data.comments,
-        ip=request.client.host if request.client else None,
-        device=request.headers.get("user-agent", "Unknown Device")
-    )
-    
-    # Log Workflow activity
-    log_workflow_activity(
+        raise HTTPException(status_code=400, detail="Task is not in 'NM Finance Approved' stage.")
+    process_task_workflow_action(
         db=db,
         task=task,
-        user_id=current_user.id,
-        username=current_user.username,
-        role=current_user.role,
-        action="GM/CFO Released (Stage 3 Complete)",
+        user=current_user,
+        action="Complete",
         comments=request_data.comments,
-        request=request,
-        digital_signature_hash=sig_hash
+        request=request
     )
-    
-    # Audit log
-    log_audit(
-        db=db,
-        username=current_user.username,
-        action_type="Workflow Actions",
-        request=request,
-        user_id=current_user.id,
-        task_id=task.id,
-        details=f"Stage 3 (GM/CFO) approved. Remarks: '{request_data.comments}'"
-    )
-    
-    # Notify Task Creator
-    creator = db.query(User).filter(User.id == task.created_by_id).first()
-    if creator:
-        notification = Notification(
-            user_id=creator.id,
-            title="Task Fully Completed",
-            message=f"Your task #{task.id} has been fully completed and closed by GM/CFO."
-        )
-        db.add(notification)
-        db.commit()
-        
-        # Dispatch email
-        send_smtp_email(
-            db=db,
-            event_type="Task Approved",
-            recipient=f"{creator.username}@company.com",
-            subject=f"Completed: Task #{task.id} Fully Released",
-            body=f"Your compliance task #{task.id} '{task.task_title}' has been fully approved by GM/CFO and released."
-        )
-        
     return {"message": "Stage 3 (GM/CFO) approved and task fully completed successfully"}
 
 @router.post("/{task_id}/reject-nmfinance")
@@ -684,81 +928,16 @@ def reject_nmfinance_stage(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
     if task.status != "Payroll Completed":
-        raise HTTPException(status_code=400, detail="Task is not in 'Payroll Completed' stage to reject")
-        
-    now = datetime.utcnow()
-    
-    # Cache old state details for logging
-    old_status = task.status
-    
-    # Increment rejection count and cache values
-    task.status = "Pending"  # Return to Payroll queue
-    task.rejection_count += 1
-    task.last_rejected_by_id = current_user.id
-    task.last_rejected_at = now
-    task.last_rejected_stage = "NM Finance"
-    task.last_rejection_reason = request_data.comments
-    
-    # Soft reset Stage 1 details so Payroll can resubmit
-    task.payroll_completed_at = None
-    task.payroll_completed_by_id = None
-    
-    db.commit()
-    
-    # Log Workflow timeline activity
-    log_workflow_activity(
+        raise HTTPException(status_code=400, detail="Task is not in 'Payroll Completed' stage.")
+    process_task_workflow_action(
         db=db,
         task=task,
-        user_id=current_user.id,
-        username=current_user.username,
-        role=current_user.role,
-        action="NM Finance Rejected (Returned to Payroll)",
+        user=current_user,
+        action="Return",
         comments=request_data.comments,
         request=request
     )
-    
-    # Set evidence status to Rejected if exists
-    if task.payroll_evidence_file_id:
-        file_entry = db.query(EvidenceFile).filter(EvidenceFile.id == task.payroll_evidence_file_id).first()
-        if file_entry:
-            file_entry.status = "Rejected"
-            file_entry.rejection_reason = request_data.comments
-            
-    # Audit log
-    log_audit(
-        db=db,
-        username=current_user.username,
-        action_type="Workflow Actions",
-        request=request,
-        user_id=current_user.id,
-        task_id=task.id,
-        details=f"NM Finance rejected Task #{task.id} back to Payroll. Reason: '{request_data.comments}'",
-        old_value=f"Status: {old_status}",
-        new_value="Status: Pending (Returned)"
-    )
-    
-    # Notify Payroll Team
-    create_workflow_notifications(
-        db=db,
-        task=task,
-        target_role="Payroll Team",
-        title="Task Rejected / Returned",
-        message=f"Task #{task.id} was returned to your queue by NM Finance. Reason: '{request_data.comments}'"
-    )
-    
-    # Dispatch email alert
-    payroll_users = db.query(User).filter(User.role == "Payroll Team", User.is_active == True).all()
-    for u in payroll_users:
-         send_smtp_email(
-             db=db,
-             event_type="Task Returned",
-             recipient=f"{u.username}@company.com",
-             subject=f"TASK RETURNED: Task #{task.id} Rejected by NM Finance",
-             body=f"Task #{task.id} '{task.task_title}' was rejected by NM Finance and returned to your queue.\n\nReason: {request_data.comments}"
-         )
-         
     return {"message": "Task rejected back to Payroll successfully"}
 
 @router.post("/{task_id}/reject-gmcfo")
@@ -772,95 +951,42 @@ def reject_gmcfo_stage(
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-        
     if task.status != "NM Finance Approved":
-        raise HTTPException(status_code=400, detail="Task is not in 'NM Finance Approved' stage to reject")
-        
-    if request_data.target_stage not in ["Payroll", "NM Finance"]:
-        raise HTTPException(
-            status_code=400,
-            detail="CFO rejection must target either 'Payroll' or 'NM Finance'"
-        )
-        
-    now = datetime.utcnow()
-    old_status = task.status
-    
-    # Set targets
-    action_lbl = ""
-    target_role_notif = ""
-    email_subject = ""
-    
-    if request_data.target_stage == "Payroll":
-         task.status = "Pending"
-         task.payroll_completed_at = None
-         task.payroll_completed_by_id = None
-         task.nm_finance_approved_at = None
-         task.nm_finance_approved_by_id = None
-         action_lbl = "GM/CFO Rejected (Returned to Payroll)"
-         target_role_notif = "Payroll Team"
-         email_subject = f"TASK RETURNED: Task #{task.id} Rejected by GM/CFO"
-    else: # NM Finance
-         task.status = "Payroll Completed"
-         task.nm_finance_approved_at = None
-         task.nm_finance_approved_by_id = None
-         action_lbl = "GM/CFO Rejected (Returned to NM Finance)"
-         target_role_notif = "NM Finance"
-         email_subject = f"TASK RETURNED: Task #{task.id} Rejected back to NM Finance"
-         
-    task.rejection_count += 1
-    task.last_rejected_by_id = current_user.id
-    task.last_rejected_at = now
-    task.last_rejected_stage = "GM/CFO"
-    task.last_rejection_reason = request_data.comments
-    
-    db.commit()
-    
-    # Log Workflow timeline activity
-    log_workflow_activity(
+        raise HTTPException(status_code=400, detail="Task is not in 'NM Finance Approved' stage.")
+    if request_data.target_stage not in ["Payroll", "NM Finance", "Manager"]:
+        raise HTTPException(status_code=400, detail="Invalid target stage.")
+    process_task_workflow_action(
         db=db,
         task=task,
-        user_id=current_user.id,
-        username=current_user.username,
-        role=current_user.role,
-        action=action_lbl,
+        user=current_user,
+        action="Return",
         comments=request_data.comments,
+        target_stage=request_data.target_stage,
         request=request
     )
-    
-    # Audit log
-    log_audit(
-        db=db,
-        username=current_user.username,
-        action_type="Workflow Actions",
-        request=request,
-        user_id=current_user.id,
-        task_id=task.id,
-        details=f"GM/CFO rejected Task #{task.id} back to {request_data.target_stage}. Reason: '{request_data.comments}'",
-        old_value=f"Status: {old_status}",
-        new_value=f"Status: {task.status} (Returned)"
-    )
-    
-    # Notify target
-    create_workflow_notifications(
+    return {"message": f"Task successfully rejected back to {request_data.target_stage}"}
+
+@router.post("/{task_id}/action")
+def execute_task_action(
+    task_id: int,
+    request_data: TaskActionRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return process_task_workflow_action(
         db=db,
         task=task,
-        target_role=target_role_notif,
-        title="Task Rejected / Returned",
-        message=f"Task #{task.id} was returned to your stage by GM/CFO. Reason: '{request_data.comments}'"
+        user=current_user,
+        action=request_data.action,
+        comments=request_data.comments,
+        evidence_file_id=request_data.evidence_file_id,
+        target_stage=request_data.target_stage,
+        request=request
     )
-    
-    # Dispatch email
-    target_users = db.query(User).filter(User.role == target_role_notif, User.is_active == True).all()
-    for u in target_users:
-         send_smtp_email(
-             db=db,
-             event_type="Task Returned",
-             recipient=f"{u.username}@company.com",
-             subject=email_subject,
-             body=f"Task #{task.id} '{task.task_title}' was rejected by GM/CFO and returned to your queue stage.\n\nReason: {request_data.comments}"
-         )
-         
-    return {"message": f"Task successfully rejected back to {request_data.target_stage}"}
 
 @router.post("/{task_id}/archive")
 def archive_task(
@@ -899,3 +1025,40 @@ def archive_task(
     )
     
     return {"message": "Task soft archived successfully"}
+
+@router.post("/{task_id}/whatsapp-nudge")
+def whatsapp_nudge(
+    task_id: int,
+    request_data: WhatsAppNudgeRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    # Log Workflow activity
+    log_workflow_activity(
+        db=db,
+        task=task,
+        user_id=current_user.id,
+        username=current_user.username,
+        role=current_user.role,
+        action="WhatsApp Nudge Initiated",
+        comments=f"WhatsApp notification initiated for task to phone: {request_data.recipient_phone}.",
+        request=request
+    )
+    
+    # Audit log
+    log_audit(
+        db=db,
+        username=current_user.username,
+        action_type="Workflow Actions",
+        request=request,
+        user_id=current_user.id,
+        task_id=task.id,
+        details=f"WhatsApp nudge initiated for Task #{task.id} to phone {request_data.recipient_phone}."
+    )
+    
+    return {"message": "WhatsApp nudge logged successfully"}

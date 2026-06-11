@@ -4,6 +4,7 @@ import streamlit as st
 from datetime import datetime
 from frontend.api_client import APIClient, BACKEND_URL
 from backend.utils import format_duration
+from frontend.styles import show_animated_bell
 
 def upload_evidence(uploaded_file):
     """
@@ -27,6 +28,35 @@ def render_page():
     st.markdown("<h1 style='color: #4F46E5;'>📝 Workflows & Tasks Workspace</h1>", unsafe_allow_html=True)
     st.write(f"Logged in as: **{st.session_state['username']}** | Access Level: **{st.session_state['user_role']}**")
     st.markdown("---")
+    
+    # Same-Day Due check for logged-in user
+    all_resp = APIClient.get("/api/tasks")
+    if all_resp and all_resp.status_code == 200:
+        all_tasks = all_resp.json()
+        now_date = datetime.utcnow().date()
+        user_role = st.session_state["user_role"]
+        due_today_actions = []
+        for t in all_tasks:
+            if t["status"] != "GM/CFO Approved" and t.get("planned_due_date"):
+                try:
+                    due_date = datetime.fromisoformat(t["planned_due_date"].replace("Z", "")).date()
+                    if due_date == now_date:
+                        # Check if action is pending for user's role
+                        is_pending = False
+                        if t["status"] == "Pending" and user_role in ["Payroll Team", "Administrator"]:
+                            is_pending = True
+                        elif t["status"] == "Payroll Completed" and user_role in ["NM Finance", "Administrator"]:
+                            is_pending = True
+                        elif t["status"] == "NM Finance Approved" and user_role in ["GM/CFO", "Administrator"]:
+                            is_pending = True
+                        
+                        if is_pending:
+                            due_today_actions.append(t)
+                except ValueError:
+                    pass
+                    
+        if due_today_actions:
+            show_animated_bell(due_today_actions)
     
     # 1. Four Core Modules Cards (Representing Categories in Phase 2)
     st.markdown("### 🗂️ Select Compliance Category")
@@ -161,7 +191,7 @@ def render_page():
                                     
                                     # Determine visual style based on action
                                     icon_color = "#4F46E5"
-                                    if "Rejected" in act["action"]:
+                                    if "Rejected" in act["action"] or "Returned" in act["action"] or "Return" in act["action"]:
                                         icon_color = "#EF4444"
                                     elif "Completed" in act["action"] or "Approved" in act["action"] or "Released" in act["action"]:
                                         icon_color = "#10B981"
@@ -180,6 +210,16 @@ def render_page():
                                         </div>
                                         """
                                         
+                                    evidence_lbl = ""
+                                    if act.get("evidence_file_id"):
+                                        file_id = act["evidence_file_id"]
+                                        evidence_lbl = f"""
+                                        <div style='margin-top: 6px;'>
+                                            📄 <span style='font-size: 0.8rem; color: var(--text-color); opacity: 0.85;'>Attached Stage Evidence:</span> 
+                                            <a href='{BACKEND_URL}/api/files/download/{file_id}' target='_blank' style='font-size: 0.8rem; font-weight: 600; color: #4F46E5;'>📥 Download Evidence File</a>
+                                        </div>
+                                        """
+                                        
                                     st.markdown(
                                         f"""
                                         <div style='border-left: 3px solid {icon_color}; padding-left: 12px; margin-bottom: 10px;'>
@@ -190,6 +230,7 @@ def render_page():
                                             <div style='font-size: 0.85rem; color: var(--text-color); opacity: 0.85; margin-top: 4px; font-style: italic;'>
                                                 Remarks: "{act['comments']}"
                                             </div>
+                                            {evidence_lbl}
                                             {sig_box}
                                         </div>
                                         """,
@@ -216,26 +257,24 @@ def render_page():
                             role = st.session_state["user_role"]
                             status_val = t["status"]
                             
-                            if status_val == "Pending" and (role in ["Payroll Team", "Administrator"]):
+                            if status_val in ["Pending", "Returned to Initiator"] and (role in ["Payroll Team", "Manager", "Administrator"]):
                                 st.markdown("##### ⚙️ Action Panel: Complete Payroll (Stage 1)")
                                 with st.form(key=f"stage1_form_{t['id']}", clear_on_submit=True):
                                     s1_comments = st.text_area("Payroll Remarks (Mandatory)", placeholder="Describe actions performed...")
-                                    s1_file = st.file_uploader("Upload Evidence Screenshot (Optional)", type=["png", "jpg", "jpeg", "pdf"], key=f"s1_file_{t['id']}")
+                                    s1_file = st.file_uploader("Upload Evidence Screenshot/Worksheet (Mandatory)", type=["png", "jpg", "jpeg", "pdf", "xlsx", "xls"], key=f"s1_file_{t['id']}")
                                     s1_submit = st.form_submit_button("Complete Stage 1 & Sign-off", use_container_width=True)
                                     
                                     if s1_submit:
                                         if not s1_comments.strip():
                                             st.error("Remarks comments field is mandatory.")
+                                        elif not s1_file:
+                                            st.error("Verification file upload is mandatory.")
                                         else:
-                                            # Optional evidence upload
-                                            file_id = None
-                                            if s1_file:
-                                                file_id = upload_evidence(s1_file)
-                                                
-                                            # Complete Stage 1
+                                            file_id = upload_evidence(s1_file)
+                                            # Complete Stage 1 via generic endpoint
                                             act_resp = APIClient.post(
-                                                f"/api/tasks/{t['id']}/complete-payroll",
-                                                json={"comments": s1_comments, "evidence_file_id": file_id}
+                                                f"/api/tasks/{t['id']}/action",
+                                                json={"action": "Forward", "comments": s1_comments, "evidence_file_id": file_id}
                                             )
                                             if act_resp and act_resp.status_code == 200:
                                                 from frontend.styles import show_animated_checkmark
@@ -254,15 +293,19 @@ def render_page():
                                     with st.form(key=f"stage2_approve_form_{t['id']}", clear_on_submit=True):
                                         st.markdown("<h6 style='color:#10B981;'>Forward Task</h6>", unsafe_allow_html=True)
                                         s2_comments = st.text_area("Approval Remarks", placeholder="Add review verification notes...")
+                                        s2_file = st.file_uploader("Upload Verification File (Mandatory)", type=["png", "jpg", "jpeg", "pdf", "xlsx", "xls"], key=f"s2_file_{t['id']}")
                                         s2_submit = st.form_submit_button("Approve Stage 2", use_container_width=True)
                                         
                                         if s2_submit:
                                             if not s2_comments.strip():
                                                 st.error("Approval remarks are mandatory.")
+                                            elif not s2_file:
+                                                st.error("Verification file upload is mandatory.")
                                             else:
+                                                file_id = upload_evidence(s2_file)
                                                 act_resp = APIClient.post(
-                                                    f"/api/tasks/{t['id']}/approve-nmfinance",
-                                                    json={"comments": s2_comments}
+                                                    f"/api/tasks/{t['id']}/action",
+                                                    json={"action": "Forward", "comments": s2_comments, "evidence_file_id": file_id}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
                                                     from frontend.styles import show_animated_checkmark
@@ -284,8 +327,8 @@ def render_page():
                                                 st.error("Rejection reason comments are mandatory.")
                                             else:
                                                 act_resp = APIClient.post(
-                                                    f"/api/tasks/{t['id']}/reject-nmfinance",
-                                                    json={"comments": s2_reject_comments}
+                                                    f"/api/tasks/{t['id']}/action",
+                                                    json={"action": "Return", "comments": s2_reject_comments}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
                                                     from frontend.styles import show_animated_checkmark
@@ -304,15 +347,19 @@ def render_page():
                                     with st.form(key=f"stage3_approve_form_{t['id']}", clear_on_submit=True):
                                         st.markdown("<h6 style='color:#10B981;'>Finalize & Complete Task</h6>", unsafe_allow_html=True)
                                         s3_comments = st.text_area("Final Release Remarks", placeholder="Final release release instructions...")
+                                        s3_file = st.file_uploader("Upload Verification File (Mandatory)", type=["png", "jpg", "jpeg", "pdf", "xlsx", "xls"], key=f"s3_file_{t['id']}")
                                         s3_submit = st.form_submit_button("Approve & Close Task", use_container_width=True)
                                         
                                         if s3_submit:
                                             if not s3_comments.strip():
                                                 st.error("Approval remarks are mandatory.")
+                                            elif not s3_file:
+                                                st.error("Verification file upload is mandatory.")
                                             else:
+                                                file_id = upload_evidence(s3_file)
                                                 act_resp = APIClient.post(
-                                                    f"/api/tasks/{t['id']}/approve-gmcfo",
-                                                    json={"comments": s3_comments}
+                                                    f"/api/tasks/{t['id']}/action",
+                                                    json={"action": "Complete", "comments": s3_comments, "evidence_file_id": file_id}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
                                                     from frontend.styles import show_animated_checkmark
@@ -334,9 +381,10 @@ def render_page():
                                             if not s3_reject_comments.strip():
                                                 st.error("Rejection reason comments are mandatory.")
                                             else:
+                                                mapped_target = "Manager" if target_stage == "Payroll" else target_stage
                                                 act_resp = APIClient.post(
-                                                    f"/api/tasks/{t['id']}/reject-gmcfo",
-                                                    json={"comments": s3_reject_comments, "target_stage": target_stage}
+                                                    f"/api/tasks/{t['id']}/action",
+                                                    json={"action": "Return", "comments": s3_reject_comments, "target_stage": mapped_target}
                                                 )
                                                 if act_resp and act_resp.status_code == 200:
                                                     from frontend.styles import show_animated_checkmark
@@ -348,12 +396,59 @@ def render_page():
                                                     st.error(det)
                             else:
                                 # User does not have access permissions for this stage
-                                current_step_owner = "Payroll Team"
+                                current_step_owner = "Manager / Payroll Team"
                                 if status_val == "Payroll Completed":
                                     current_step_owner = "NM Finance"
                                 elif status_val == "NM Finance Approved":
                                     current_step_owner = "GM/CFO"
                                 st.warning(f"Waiting for action from **{current_step_owner}** role. You do not have permissions for this stage.")
+                                
+                            st.markdown("---")
+                            st.markdown("##### 💬 Send WhatsApp Nudge Alert")
+                            
+                            owner_role = "Payroll Team"
+                            if status_val == "Payroll Completed":
+                                owner_role = "NM Finance"
+                            elif status_val == "NM Finance Approved":
+                                owner_role = "GM/CFO"
+                                
+                            default_msg = f"Task Alert: Task #{t['id']} '{t['task_title']}' is pending action from the {owner_role} stage. Please review and sign off."
+                            
+                            wa_col1, wa_col2 = st.columns([1, 2])
+                            with wa_col1:
+                                wa_phone = st.text_input(
+                                    "Recipient Phone", 
+                                    value="", 
+                                    placeholder="e.g. +923001234567", 
+                                    key=f"wa_phone_{t['id']}"
+                                )
+                            with wa_col2:
+                                wa_msg = st.text_area("Custom Message", value=default_msg, key=f"wa_msg_{t['id']}")
+                                
+                            if st.button("Generate WhatsApp Nudge", key=f"wa_nudge_btn_{t['id']}", use_container_width=True):
+                                if not wa_phone.strip():
+                                    st.error("Recipient phone number is required.")
+                                else:
+                                    nudge_resp = APIClient.post(
+                                        f"/api/tasks/{t['id']}/whatsapp-nudge",
+                                        json={
+                                            "recipient_phone": wa_phone.strip(),
+                                            "message": wa_msg
+                                        }
+                                    )
+                                    if nudge_resp and nudge_resp.status_code == 200:
+                                        import urllib.parse
+                                        clean_phone = wa_phone.replace('+', '').replace(' ', '').strip()
+                                        encoded_msg = urllib.parse.quote(wa_msg)
+                                        wa_web_url = f"https://wa.me/{clean_phone}?text={encoded_msg}"
+                                        
+                                        st.success("WhatsApp nudge logged in audit log!")
+                                        st.markdown(
+                                            f'<a href="{wa_web_url}" target="_blank" style="text-decoration:none;"><div style="background-color:#25D366; color:white; border:none; padding:12px; border-radius:8px; text-align:center; font-weight:bold; cursor:pointer; font-size:1rem; margin-top:10px;">👉 Click here to send message via WhatsApp Web</div></a>', 
+                                            unsafe_allow_html=True
+                                        )
+                                    else:
+                                        st.error("Failed to log WhatsApp nudge on the server.")
                                 
                             # ADMINISTRATOR OPTIONS: EDIT & SOFT ARCHIVE
                             if role == "Administrator":

@@ -199,3 +199,97 @@ def show_animated_checkmark(message="Action completed successfully!"):
         """,
         unsafe_allow_html=True
     )
+
+def show_animated_bell(task_list):
+    """
+    Displays a large, visual, CSS-animated bell component highlighting tasks
+    that are due today and require user action.
+    """
+    tasks_html = ""
+    for t in task_list:
+        tasks_html += f"""
+        <div style="background: rgba(255, 255, 255, 0.05); padding: 12px 18px; border-radius: 8px; margin: 10px 0; border-left: 5px solid #EF4444; text-align: left; width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: bold; font-size: 1rem; color: var(--text-color);">Task #{t['id']}: {t['task_title']}</span>
+                <span style="background: #EF4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase;">Due Today</span>
+            </div>
+            <div style="font-size: 0.85rem; color: var(--text-color); opacity: 0.75; margin-top: 5px;">
+                Category: <b>{t['category']}</b> | Stage: <b>{t['status']}</b>
+            </div>
+        </div>
+        """
+
+    st.markdown(
+        f"""
+        <div class="bell-container">
+            <div class="bell-icon">🔔</div>
+            <div class="bell-title">Critical Tasks Due Today</div>
+            <div class="bell-subtitle">The following tasks are due today and require your pending sign-off/action.</div>
+            <div style="width: 100%; max-width: 700px;">
+                {tasks_html}
+            </div>
+        </div>
+        <style>
+        .bell-container {{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(220, 38, 38, 0.05));
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(239, 68, 68, 0.08);
+            animation: pulseBorder 2.5s infinite alternate;
+        }}
+        .bell-icon {{
+            font-size: 4rem;
+            animation: ringBell 2s ease-in-out infinite;
+            transform-origin: top center;
+            display: inline-block;
+            filter: drop-shadow(0 4px 8px rgba(239, 68, 68, 0.3));
+        }}
+        .bell-title {{
+            font-family: 'Outfit', 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 1.6rem;
+            color: #EF4444;
+            margin-top: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }}
+        .bell-subtitle {{
+            font-size: 0.95rem;
+            color: var(--text-color);
+            opacity: 0.8;
+            margin: 5px 0 20px 0;
+            text-align: center;
+        }}
+        @keyframes ringBell {{
+            0% {{ transform: rotate(0); }}
+            5% {{ transform: rotate(18deg); }}
+            10% {{ transform: rotate(-14deg); }}
+            15% {{ transform: rotate(12deg); }}
+            20% {{ transform: rotate(-10deg); }}
+            25% {{ transform: rotate(8deg); }}
+            30% {{ transform: rotate(-6deg); }}
+            35% {{ transform: rotate(4deg); }}
+            40% {{ transform: rotate(-2deg); }}
+            45% {{ transform: rotate(1deg); }}
+            50%, 100% {{ transform: rotate(0); }}
+        }}
+        @keyframes pulseBorder {{
+            0% {{
+                border-color: rgba(239, 68, 68, 0.25);
+                box-shadow: 0 10px 25px rgba(239, 68, 68, 0.05);
+            }}
+            100% {{
+                border-color: rgba(239, 68, 68, 0.6);
+                box-shadow: 0 10px 30px rgba(239, 68, 68, 0.25);
+            }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )

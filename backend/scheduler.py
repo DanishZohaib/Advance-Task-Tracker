@@ -123,8 +123,8 @@ def run_recurring_task_generation(db: Session):
             # Update last generated date
             temp.last_generated_at = now
             
-            # Notify Payroll Team about new task
-            payroll_users = db.query(User).filter(User.role == "Payroll Team", User.is_active == True).all()
+            # Notify Payroll Team & Manager about new task
+            payroll_users = db.query(User).filter(User.role.in_(["Payroll Team", "Manager"]), User.is_active == True).all()
             for u in payroll_users:
                 notification = Notification(
                     user_id=u.id,

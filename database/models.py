@@ -70,7 +70,7 @@ class Task(Base):
     payroll_completed_at = Column(DateTime, nullable=True)
     payroll_completed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     payroll_comments = Column(Text, nullable=True)
-    payroll_evidence_file_id = Column(Integer, ForeignKey("files.id"), nullable=True)
+    payroll_evidence_file_id = Column(Integer, ForeignKey("evidence_files.id"), nullable=True)
     payroll_processing_time = Column(Float, nullable=True)  # Store duration in seconds
 
     # Stage 2: NM Finance
@@ -140,7 +140,7 @@ class RecurringTaskMaster(Base):
 
 
 class EvidenceFile(Base):
-    __tablename__ = "files"
+    __tablename__ = "evidence_files"
 
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
@@ -176,7 +176,7 @@ class WorkflowActivity(Base):
     # State transitions e.g., 'Created', 'Payroll Completed', 'NM Finance Approved', 'NM Finance Rejected', etc.
     action = Column(String(100), nullable=False)
     comments = Column(Text, nullable=True)
-    evidence_file_id = Column(Integer, ForeignKey("files.id"), nullable=True)
+    evidence_file_id = Column(Integer, ForeignKey("evidence_files.id"), nullable=True)
     duration = Column(Float, nullable=True)  # in seconds from the previous event
     
     # Audit signatures
@@ -235,6 +235,91 @@ class EmailDeliveryLog(Base):
     error_message = Column(Text, nullable=True)
     sent_at = Column(DateTime, default=datetime.utcnow, index=True)
 
+# 11 New Schema Tables for Finance & Payroll Workflow Hierarchy
+
+class Role(Base):
+    __tablename__ = "roles"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True, index=True, nullable=False)
+    description = Column(String(255), nullable=True)
+
+class WorkflowDefinition(Base):
+    __tablename__ = "workflow_definitions"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    category = Column(String(100), unique=True, index=True, nullable=False)
+
+class WorkflowStep(Base):
+    __tablename__ = "workflow_steps"
+    id = Column(Integer, primary_key=True, index=True)
+    workflow_definition_id = Column(Integer, ForeignKey("workflow_definitions.id"), nullable=False)
+    step_number = Column(Integer, nullable=False)
+    role = Column(String(50), nullable=False)
+
+class TaskAssignment(Base):
+    __tablename__ = "task_assignments"
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
+    assigned_role = Column(String(50), nullable=False)
+    assigned_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assigned_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(50), default="Pending")
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    username = Column(String(100), nullable=False)
+    user_role = Column(String(50), nullable=False)
+    comment_text = Column(Text, nullable=False)
+    action = Column(String(50), nullable=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class TaskReturn(Base):
+    __tablename__ = "task_returns"
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
+    returned_by = Column(String(100), nullable=False)
+    returned_to = Column(String(100), nullable=False)
+    return_reason = Column(Text, nullable=False)
+    return_date = Column(DateTime, default=datetime.utcnow)
+    return_count = Column(Integer, default=1, nullable=False)
+
+class TaskRejection(Base):
+    __tablename__ = "task_rejections"
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
+    rejected_by = Column(String(100), nullable=False)
+    rejected_date = Column(DateTime, default=datetime.utcnow)
+    rejection_reason = Column(Text, nullable=False)
+    rejection_stage = Column(String(50), nullable=False)
+    rejection_count = Column(Integer, default=1, nullable=False)
+
+class TaskApproval(Base):
+    __tablename__ = "task_approvals"
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False, index=True)
+    approved_by = Column(String(100), nullable=False)
+    approved_stage = Column(String(50), nullable=False)
+    approved_at = Column(DateTime, default=datetime.utcnow)
+    comments = Column(Text, nullable=True)
+
+class UserHierarchy(Base):
+    __tablename__ = "user_hierarchy"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reports_to_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+class ApprovalMatrix(Base):
+    __tablename__ = "approval_matrix"
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(100), nullable=False)
+    initiator_role = Column(String(50), nullable=False)
+    approver_role = Column(String(50), nullable=False)
+    sequence = Column(Integer, nullable=False)
+
 # Indices for performance tuning under load
 Index("ix_audit_logs_username_timestamp", AuditLog.username, AuditLog.timestamp)
 Index("ix_audit_logs_action_type", AuditLog.action_type)
+

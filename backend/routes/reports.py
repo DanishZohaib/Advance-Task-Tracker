@@ -1,13 +1,13 @@
 import io
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import openpyxl
 from database.connection import get_db
-from database.models import Task, User, AuditLog, EvidenceFile
+from database.models import Task, User, AuditLog, EvidenceFile, TaskReturn, TaskRejection
 from backend.security import get_current_user, RoleChecker
 from backend.utils import log_audit, format_duration
 
@@ -19,9 +19,154 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 
+def get_filtered_tasks_query(
+    db: Session,
+    category: Optional[str] = None,
+    user_id: Optional[int] = None,
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    completed_by: Optional[str] = None,  # "Manager", "NM Finance", "GM/CFO"
+    returned: Optional[bool] = None,
+    rejected: Optional[bool] = None,
+    overdue: Optional[bool] = None,
+    escalated: Optional[bool] = None,
+    has_evidence: Optional[bool] = None,
+    interval: Optional[str] = None,  # "Monthly", "Quarterly", "Half-Yearly", "Yearly"
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None
+):
+    query = db.query(Task)
+    now = datetime.utcnow()
+
+    if category:
+        query = query.filter(Task.category == category)
+    if user_id:
+        query = query.filter(Task.created_by_id == user_id)
+    if status:
+        query = query.filter(Task.status == status)
+
+    if role:
+        if role == "Manager":
+            query = query.filter(Task.status.in_(["Pending", "Returned to Initiator"]))
+        elif role == "NM Finance":
+            query = query.filter(Task.status == "Payroll Completed")
+        elif role == "GM/CFO":
+            query = query.filter(Task.status == "NM Finance Approved")
+
+    if completed_by:
+        if completed_by == "Manager":
+            query = query.filter(Task.payroll_completed_by_id.isnot(None))
+        elif completed_by == "NM Finance":
+            query = query.filter(Task.nm_finance_approved_by_id.isnot(None))
+        elif completed_by == "GM/CFO":
+            query = query.filter(Task.gmcfo_approved_by_id.isnot(None))
+
+    from sqlalchemy import select
+    if returned is not None:
+        return_subquery = select(TaskReturn.task_id)
+        if returned:
+            query = query.filter(Task.id.in_(return_subquery))
+        else:
+            query = query.filter(~Task.id.in_(return_subquery))
+
+    if rejected is not None:
+        rejection_subquery = select(TaskRejection.task_id)
+        if rejected:
+            query = query.filter(Task.id.in_(rejection_subquery))
+        else:
+            query = query.filter(~Task.id.in_(rejection_subquery))
+
+    if overdue is not None:
+        if overdue:
+            query = query.filter(
+                ((Task.actual_completion_date.isnot(None)) & (Task.actual_completion_date > Task.planned_due_date)) |
+                ((Task.actual_completion_date.is_null()) & (Task.planned_due_date < now))
+            )
+        else:
+            query = query.filter(
+                ~(((Task.actual_completion_date.isnot(None)) & (Task.actual_completion_date > Task.planned_due_date)) |
+                  ((Task.actual_completion_date.is_null()) & (Task.planned_due_date < now)))
+            )
+
+    if escalated is not None:
+        seven_days_ago = now - timedelta(days=7)
+        if escalated:
+            query = query.filter(
+                (Task.status != "GM/CFO Approved") & (Task.created_at <= seven_days_ago)
+            )
+        else:
+            query = query.filter(
+                ~((Task.status != "GM/CFO Approved") & (Task.created_at <= seven_days_ago))
+            )
+
+    if has_evidence is not None:
+        if has_evidence:
+            query = query.filter(Task.payroll_evidence_file_id.isnot(None))
+        else:
+            query = query.filter(Task.payroll_evidence_file_id.is_null())
+
+    if interval:
+        if interval == "Monthly":
+            query = query.filter(Task.created_at >= now - timedelta(days=30))
+        elif interval == "Quarterly":
+            query = query.filter(Task.created_at >= now - timedelta(days=90))
+        elif interval == "Half-Yearly":
+            query = query.filter(Task.created_at >= now - timedelta(days=180))
+        elif interval == "Yearly":
+            query = query.filter(Task.created_at >= now - timedelta(days=365))
+
+    if start_date:
+        query = query.filter(Task.created_at >= start_date)
+    if end_date:
+        query = query.filter(Task.created_at <= end_date)
+
+    return query
+
+@router.get("/tasks")
+def get_report_tasks(
+    category: Optional[str] = None,
+    user_id: Optional[int] = None,
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    completed_by: Optional[str] = None,
+    returned: Optional[bool] = None,
+    rejected: Optional[bool] = None,
+    overdue: Optional[bool] = None,
+    escalated: Optional[bool] = None,
+    has_evidence: Optional[bool] = None,
+    interval: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    current_user: User = Depends(RoleChecker(["Administrator", "Auditor", "GM/CFO", "NM Finance"])),
+    db: Session = Depends(get_db)
+):
+    query = get_filtered_tasks_query(
+        db, category, user_id, role, status, completed_by,
+        returned, rejected, overdue, escalated, has_evidence,
+        interval, start_date, end_date
+    )
+    tasks = query.order_by(Task.created_at.desc()).all()
+    now = datetime.utcnow()
+    
+    from backend.routes.tasks import map_task_details
+    return [map_task_details(t, now) for t in tasks]
+
 @router.get("/csv")
 def export_csv(
     report_type: str = "tasks",  # "tasks", "audit", "evidence"
+    category: Optional[str] = None,
+    user_id: Optional[int] = None,
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    completed_by: Optional[str] = None,
+    returned: Optional[bool] = None,
+    rejected: Optional[bool] = None,
+    overdue: Optional[bool] = None,
+    escalated: Optional[bool] = None,
+    has_evidence: Optional[bool] = None,
+    interval: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     current_user: User = Depends(RoleChecker(["Administrator", "Auditor", "GM/CFO", "NM Finance"])),
     db: Session = Depends(get_db)
 ):
@@ -30,7 +175,12 @@ def export_csv(
     now = datetime.utcnow()
     
     if report_type == "tasks":
-        tasks = db.query(Task).all()
+        query = get_filtered_tasks_query(
+            db, category, user_id, role, status, completed_by,
+            returned, rejected, overdue, escalated, has_evidence,
+            interval, start_date, end_date
+        )
+        tasks = query.all()
         writer.writerow([
             "Task ID", "Title", "Description", "Department", "Category", "Status", 
             "Created By", "Created At", "Planned Due Date", "SLA Days", "SLA Status", "Rejection Count",
@@ -41,7 +191,6 @@ def export_csv(
             "Total Duration (hours)", "Archived"
         ])
         for t in tasks:
-            # SLA status computation
             planned = t.planned_due_date
             completed = t.actual_completion_date
             sla_status = "On Track"
@@ -131,10 +280,28 @@ def export_csv(
 
 @router.get("/excel")
 def export_excel(
+    category: Optional[str] = None,
+    user_id: Optional[int] = None,
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    completed_by: Optional[str] = None,
+    returned: Optional[bool] = None,
+    rejected: Optional[bool] = None,
+    overdue: Optional[bool] = None,
+    escalated: Optional[bool] = None,
+    has_evidence: Optional[bool] = None,
+    interval: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     current_user: User = Depends(RoleChecker(["Administrator", "Auditor", "GM/CFO", "NM Finance"])),
     db: Session = Depends(get_db)
 ):
-    tasks = db.query(Task).all()
+    query = get_filtered_tasks_query(
+        db, category, user_id, role, status, completed_by,
+        returned, rejected, overdue, escalated, has_evidence,
+        interval, start_date, end_date
+    )
+    tasks = query.all()
     audit = db.query(AuditLog).all()
     users = db.query(User).all()
     
@@ -152,7 +319,6 @@ def export_excel(
     ])
     now = datetime.utcnow()
     for t in tasks:
-        # SLA status computation
         planned = t.planned_due_date
         completed = t.actual_completion_date
         sla_status = "On Track"
@@ -233,6 +399,19 @@ def export_excel(
 
 @router.get("/pdf")
 def export_pdf(
+    category: Optional[str] = None,
+    user_id: Optional[int] = None,
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    completed_by: Optional[str] = None,
+    returned: Optional[bool] = None,
+    rejected: Optional[bool] = None,
+    overdue: Optional[bool] = None,
+    escalated: Optional[bool] = None,
+    has_evidence: Optional[bool] = None,
+    interval: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
     current_user: User = Depends(RoleChecker(["Administrator", "Auditor", "GM/CFO", "NM Finance"])),
     db: Session = Depends(get_db)
 ):
@@ -300,13 +479,20 @@ def export_pdf(
     story.append(Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Target Auditor: {current_user.username} ({current_user.role})", subtitle_style))
     story.append(Spacer(1, 10))
     
+    query = get_filtered_tasks_query(
+        db, category, user_id, role, status, completed_by,
+        returned, rejected, overdue, escalated, has_evidence,
+        interval, start_date, end_date
+    )
+    tasks = query.all()
+
     # KPI metrics summary
-    total_tasks = db.query(Task).count()
-    completed_tasks = db.query(Task).filter(Task.status == "GM/CFO Approved").count()
+    total_tasks = len(tasks)
+    completed_tasks = len([t for t in tasks if t.status == "GM/CFO Approved"])
     pending_tasks = total_tasks - completed_tasks
     
     # SLA Compliance rate
-    completed_tasks_list = db.query(Task).filter(Task.status == "GM/CFO Approved").all()
+    completed_tasks_list = [t for t in tasks if t.status == "GM/CFO Approved"]
     on_time = 0
     for t in completed_tasks_list:
         if t.planned_due_date and t.actual_completion_date:
@@ -317,7 +503,7 @@ def export_pdf(
     sla_compliance_rate = (on_time / len(completed_tasks_list) * 100) if completed_tasks_list else 100.0
     
     # Rejections sum
-    total_rejections = sum([t.rejection_count for t in db.query(Task).all()])
+    total_rejections = sum([t.rejection_count for t in tasks])
     
     kpi_data = [
         [
@@ -341,8 +527,7 @@ def export_pdf(
     story.append(Spacer(1, 20))
     
     # Table section: Active Pending Tasks
-    story.append(Paragraph("Pending Tasks in Workflow Pipeline", section_title))
-    tasks = db.query(Task).filter(Task.status != "GM/CFO Approved", Task.is_archived == False).all()
+    story.append(Paragraph("Compliance Report Task Pipeline", section_title))
     
     table_data = [
         [

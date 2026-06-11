@@ -22,6 +22,14 @@ def render_page():
         
     templates = temp_resp.json()
     
+    # Fetch users directory
+    users_resp = APIClient.get("/api/auth/users")
+    if not users_resp or users_resp.status_code != 200:
+        st.error("Failed to load user directory.")
+        return
+    users = users_resp.json()
+    user_options = {u["username"]: u["id"] for u in users}
+    
     # Tabs
     tab_list, tab_create = st.tabs(["📋 Scheduled Templates", "➕ Add Schedule Template"])
     
@@ -47,7 +55,7 @@ def render_page():
                 st.markdown("#### Manage Schedule Templates")
                 col_sel, col_action = st.columns([1, 2])
                 with col_sel:
-                    selected_id = st.selectbox("Select Template ID to Toggle", options=[t["id"] for t in templates])
+                    selected_id = st.selectbox("Select Template ID to Manage", options=[t["id"] for t in templates])
                 with col_action:
                     # Find template
                     temp = next(t for t in templates if t["id"] == selected_id)
@@ -59,7 +67,7 @@ def render_page():
                             f"/api/recurring/{selected_id}",
                             json={
                                 "task_name": temp["task_name"],
-                                "department": temp["department"],
+                                "department": temp["category"],
                                 "description": temp["description"],
                                 "responsible_person_id": temp["responsible_person_id"],
                                 "start_date": temp["start_date"],
@@ -73,6 +81,88 @@ def render_page():
                             st.rerun()
                         else:
                             st.error("Failed to update template.")
+
+                # Edit Template form below the selection controls
+                st.markdown("---")
+                st.markdown(f"### ✏️ Edit Template ID: {selected_id}")
+                
+                default_user = temp.get("responsible_person")
+                user_list = list(user_options.keys())
+                try:
+                    user_idx = user_list.index(default_user)
+                except ValueError:
+                    user_idx = 0
+                    
+                dept_options = ["Payroll", "Fund Accounting", "Petty Cash", "Audit Schedules"]
+                current_dept = temp.get("category") or temp.get("department")
+                if current_dept not in dept_options:
+                    dept_options.append(current_dept)
+                try:
+                    dept_idx = dept_options.index(current_dept)
+                except ValueError:
+                    dept_idx = 0
+                    
+                try:
+                    start_date_parsed = datetime.fromisoformat(temp["start_date"].replace("Z", "")).date()
+                except Exception:
+                    start_date_parsed = datetime.today()
+                    
+                freq_options = ["Daily", "Weekly", "Monthly", "Quarterly", "Half-Yearly", "Yearly", "Every 2 Years"]
+                current_freq = temp.get("frequency")
+                if current_freq not in freq_options:
+                    freq_options.append(current_freq)
+                try:
+                    freq_idx = freq_options.index(current_freq)
+                except ValueError:
+                    freq_idx = 0
+                    
+                with st.form(f"edit_recurring_form_{selected_id}", clear_on_submit=False):
+                    edit_name = st.text_input("Task Name *", value=temp["task_name"])
+                    edit_dept = st.selectbox(
+                        "Target Pipeline Module *", 
+                        options=dept_options,
+                        index=dept_idx
+                    )
+                    edit_desc = st.text_area("Detailed Guidelines & Steps", value=temp["description"] or "")
+                    edit_resp_user = st.selectbox("Responsible Person Signature *", options=user_list, index=user_idx)
+                    edit_start_date = st.date_input("Start Schedule Date", value=start_date_parsed)
+                    edit_freq = st.selectbox(
+                        "Frequency Interval *",
+                        options=freq_options,
+                        index=freq_idx
+                    )
+                    edit_reminder = st.number_input("Reminder Buffer (Days)", min_value=0, max_value=30, value=int(temp["reminder_days"]))
+                    edit_is_active = st.checkbox("Is Active", value=temp["is_active"])
+                    
+                    edit_submit_btn = st.form_submit_button("Save Changes")
+                    
+                    if edit_submit_btn:
+                        if not edit_name.strip():
+                            st.error("Task Name is mandatory.")
+                        else:
+                            # Convert start_date to datetime ISO string
+                            start_dt = datetime.combine(edit_start_date, datetime.min.time()).isoformat()
+                            
+                            resp = APIClient.put(
+                                f"/api/recurring/{selected_id}",
+                                json={
+                                    "task_name": edit_name.strip(),
+                                    "department": edit_dept,
+                                    "description": edit_desc.strip(),
+                                    "responsible_person_id": user_options[edit_resp_user],
+                                    "start_date": start_dt,
+                                    "frequency": edit_freq,
+                                    "reminder_days": edit_reminder,
+                                    "is_active": edit_is_active
+                                }
+                            )
+                            if resp and resp.status_code == 200:
+                                st.success("Recurring template updated successfully!")
+                                time.sleep(1.0)
+                                st.rerun()
+                            else:
+                                detail = resp.json().get("detail", "Error updating template.") if resp else "Backend unreachable."
+                                st.error(detail)
                             
     # Tab 2: Create Template (Role-restricted)
     with tab_create:
@@ -80,15 +170,6 @@ def render_page():
             st.error("You are not authorized to create scheduling rules.")
         else:
             st.markdown("### Create New Compliance Routine Template")
-            
-            # Fetch users to populate responsible person drop-down
-            users_resp = APIClient.get("/api/auth/users")
-            if not users_resp or users_resp.status_code != 200:
-                st.error("Failed to fetch user directory for assignments.")
-                return
-            users = users_resp.json()
-            user_options = {u["username"]: u["id"] for u in users}
-            
             with st.form("create_recurring_form", clear_on_submit=True):
                 t_name = st.text_input("Task Name *", placeholder="e.g. Monthly VAT Reconciliation")
                 t_dept = st.selectbox(

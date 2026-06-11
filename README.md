@@ -50,6 +50,17 @@ Sequential progress gating with automated role checks:
 * Allows Administrators and GM/CFOs to bulk upload recurring tasks using a standardized Excel template.
 * Performs full row-by-row structural and date validation before import.
 
+### 7. Same-Day Due Animated Bell Alerts
+* Scans all active tasks on loading the tasks workspace.
+* Renders a prominent, CSS-animated ringing bell alert at the top of the workspace to highlight tasks due today that are pending action from the currently logged-in user.
+
+### 8. WhatsApp Nudge Alerts
+* Integrates a direct "💬 Send WhatsApp Nudge Alert" input panel on each active task card.
+* Allows operators to input a phone number, pre-populate reminder messages, log the nudge event securely in the task's timeline history and system audit trail, and redirect the user directly to WhatsApp Web.
+
+### 9. Fully Editable Recurring Templates
+* Enables administrators to dynamically modify any fields of a scheduled compliance routine template (such as task name, department, guidelines, responsible assignee, starting date, and frequency interval) from the template list.
+
 ---
 
 ## 🛠️ Technology Stack & Architecture
@@ -136,11 +147,14 @@ To maintain clean operational standards, users can refer to the full **Operator 
 1. **First-time Onboarding:**
    - Log in as `admin`.
    - Navigate to `⚙️ SMTP Admin Settings` and save SMTP details.
-2. **Assigning Tasks:**
-   - Navigate to `⚙️ Recurring Task Master` and register a template, or upload templates in bulk via Excel in the `Workflows & Tasks` import tab.
+2. **Assigning & Managing Tasks:**
+   - Navigate to `⚙️ Recurring Task Master` to register or fully edit a template (any field can be modified by admins), or upload templates in bulk via Excel in the `Workflows & Tasks` import tab.
 3. **Stage 1 (Payroll Processing):**
    - Logging in as `Payroll Team`, select a task, write required comments, upload evidence, and sign off.
 4. **Stage 2 (Review & Approvals):**
    - The task will appear in the `NM Finance` dashboard queue. Verify comments and evidence, then sign off (Approve) or send back to the Payroll Team with comments (Reject).
 5. **Stage 3 (GM/CFO Release):**
    - Once approved by NM Finance, the GM/CFO user opens the task, reviews the full chronological timeline showing previous signatures/remarks, and issues the final release (Complete) or returns it to a previous stage.
+6. **Same-Day Deadlines & Nudges:**
+   - If any active task is due today, the pending assignee sees a large animated ringing bell warning at the top of their workspace.
+   - Operators can nudge pending assignees by filling out a phone number on the task card, logging the nudge in the audit trail, and opening WhatsApp Web.

@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class UserRegister(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(...)
-    role: str = Field(...)  # 'Payroll Team', 'NM Finance', 'GM/CFO', 'Administrator', 'Auditor'
+    role: str = Field(...)  # 'Manager', 'Assistant Manager', 'Executive Payroll', 'Executive Petty Cash', 'Junior Support Staff', 'NM Finance', 'GM/CFO', 'Administrator', 'Auditor'
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -35,12 +35,14 @@ class TokenRefreshRequest(BaseModel):
 @router.post("/register", response_model=TokenResponse)
 def register(request_data: UserRegister, request: Request, db: Session = Depends(get_db)):
     # Validate role
-    valid_roles = ["Payroll Team", "NM Finance", "GM/CFO", "Administrator", "Auditor"]
+    valid_roles = ["Manager", "Assistant Manager", "Executive Payroll", "Executive Petty Cash", "Junior Support Staff", "NM Finance", "GM/CFO", "Administrator", "Auditor", "Payroll Team"]
     if request_data.role not in valid_roles:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid role. Must be one of {valid_roles}"
         )
+        
+    role_to_save = request_data.role
         
     # Check if username exists
     existing_user = db.query(User).filter(User.username == request_data.username).first()
@@ -61,7 +63,7 @@ def register(request_data: UserRegister, request: Request, db: Session = Depends
     user = User(
         username=request_data.username,
         password_hash=hash_password(request_data.password),
-        role=request_data.role,
+        role=role_to_save,
         is_active=True
     )
     db.add(user)

@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 STORAGE_DIR = "e:/Antigravity/Advance-Task-Tracker/storage/evidence"
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf"}
+ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".pdf", ".xlsx", ".xls"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 @router.post("/upload")

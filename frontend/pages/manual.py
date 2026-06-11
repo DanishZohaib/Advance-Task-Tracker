@@ -302,7 +302,7 @@ def render_page():
                 """
                 <div style='background: var(--secondary-background-color); padding: 18px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.15); min-height: 150px;'>
                     <b style='color: #4F46E5; font-size: 1rem;'>1. Schedule Routines</b><br>
-                    <span style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem;'>Configure tasks generation templates using the <b>Recurring Task Master</b> interface.</span>
+                    <span style='color: var(--text-color); opacity: 0.7; font-size: 0.85rem;'>Configure and edit tasks generation templates (any field can be modified) using the <b>Recurring Task Master</b> interface.</span>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -340,3 +340,14 @@ def render_page():
             """,
             unsafe_allow_html=True
         )
+
+    # General System Alert Guidelines
+    st.markdown("---")
+    st.markdown("### 🔔 Same-Day Due Alerts & 💬 WhatsApp Nudges")
+    st.markdown(
+        """
+        To maintain high operational efficiency, the system provides real-time highlights for same-day deadlines:
+        - **Same-Day Due Alarms:** If any active tasks are due on the current day, a large animated bell is displayed at the top of the **Workflows & Tasks Workspace** for users who are responsible for the pending action.
+        - **WhatsApp Nudges:** Operators can send nudge notifications to the responsible team members by inputting their phone number in the task details view. This action is securely logged in the task's timeline history and system audit logs, and redirects the user to WhatsApp Web to deliver the message.
+        """
+    )

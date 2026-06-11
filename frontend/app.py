@@ -164,7 +164,7 @@ def run_main_app():
     
     # Navigation mapping
     pages = {
-        "📊 Executive Dashboard": "dashboard",
+        "📊 Payroll Dashboard": "dashboard",
         "📝 Workflows & Tasks": "tasks",
         "📖 Operator Manual": "manual",
         "⚙️ Recurring Task Master": "recurring",
